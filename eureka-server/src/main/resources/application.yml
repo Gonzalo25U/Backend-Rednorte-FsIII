@@ -1,0 +1,22 @@
+server:
+    port: ${SERVER_PORT:8761}
+spring:
+  application:
+    #   nombre del servicio Eureka Server
+    name: eureka-server
+
+eureka:
+  client:
+    register-with-eureka: false
+    fetch-registry: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+    #   permite exponer los endpoints de salud e información
+        include: health,info
+  endpoint:
+    #   configura el endpoint de salud para mostrar detalles siempre
+    health:
+      show-details: always
