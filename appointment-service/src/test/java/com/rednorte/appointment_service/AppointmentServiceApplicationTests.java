@@ -1,10 +1,10 @@
-package com.rednorte.gateway_service;
+package com.rednorte.appointment_service;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 
 @SpringBootTest
-class GatewayServiceApplicationTests {
+class AppointmentServiceApplicationTests {
 
 	@Test
 	void contextLoads() {

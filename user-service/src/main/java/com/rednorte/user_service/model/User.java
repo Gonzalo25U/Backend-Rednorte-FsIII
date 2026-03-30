@@ -1,5 +1,7 @@
 package com.rednorte.user_service.model;
 
+import com.rednorte.user_service.enums.UserRole;
+
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 
@@ -24,7 +26,8 @@ public class User {
 
     private String name;
 
-    private String role; // ADMIN, PATIENT, DOCTOR
+    @Enumerated(EnumType.STRING)
+    private UserRole role;
 
     private String password;
 

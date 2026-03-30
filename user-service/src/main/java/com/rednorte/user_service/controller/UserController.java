@@ -1,5 +1,6 @@
 package com.rednorte.user_service.controller;
 
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import com.rednorte.user_service.model.User;
@@ -27,10 +28,15 @@ public class UserController {
     }
 
     @GetMapping("/{rut}")
-    public User getByRut(@PathVariable String rut) {
-        return service.getByRut(rut);
-    }
+    public ResponseEntity<?> getByRut(@PathVariable String rut) {
+        User user = service.getByRut(rut);
 
+        if (user == null) {
+            return ResponseEntity.notFound().build(); // ✅ 404 correcto
+        }
+
+        return ResponseEntity.ok(user);
+    }
     @DeleteMapping("/{id}")
     public void delete(@PathVariable Long id) {
         service.deleteUser(id);

@@ -1,22 +1,17 @@
 package com.rednorte.user_service.dto;
 
-import lombok.Data;
+import com.rednorte.user_service.enums.UserRole;
 
-@Data
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+
+@Getter
+@AllArgsConstructor
 public class UserResponseDTO {
 
     private Long id;
     private String rut;
     private String name;
-    private String role;
+    private UserRole role;
     private boolean active;
-
-    public UserResponseDTO(Long id, String rut, String name, String role, boolean active) {
-        this.id = id;
-        this.rut = rut;
-        this.name = name;
-        this.role = role;
-        this.active = active;
-    }
-
 }
