@@ -13,7 +13,6 @@ public class AppointmentMapper {
 
         a.setPatientRut(dto.getPatientRut());
         a.setDoctorRut(dto.getDoctorRut());
-        a.setDateTime(dto.getDateTime());
 
         // ✅ usar enums
         a.setStatus(AppointmentStatus.PENDIENTE);

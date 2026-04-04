@@ -7,7 +7,9 @@ import com.rednorte.appointment_service.mapper.AppointmentMapper;
 import com.rednorte.appointment_service.model.Appointment;
 import com.rednorte.appointment_service.service.AppointmentService;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 
@@ -46,7 +48,15 @@ public class AppointmentController {
 
     // ✅ Cambiar estado (APROBAR, etc.)
     @PutMapping("/{id}/status")
-    public void updateStatus(@PathVariable Long id, @RequestParam String status) {
+    public void updateStatus(
+            @PathVariable Long id,
+            @RequestParam String status,
+            @RequestHeader("role") String role // 👈 temporal
+    ) {
+        if (!role.equals("DOCTOR")) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Solo doctores pueden cambiar estado");
+        }
+
         service.updateStatus(id, AppointmentStatus.valueOf(status.toUpperCase()));
     }
 }

@@ -2,23 +2,29 @@ package com.rednorte.user_service.dto;
 
 
 
-import jakarta.validation.constraints.NotBlank;
-import lombok.AllArgsConstructor;
+import com.rednorte.user_service.enums.UserRole;
+import jakarta.validation.constraints.*;
+
 import lombok.Data;
+
 @Data
-@AllArgsConstructor
 public class UserRequestDTO {
 
-    @NotBlank
+    @NotBlank(message = "El RUT es obligatorio")
+    @Pattern(
+        regexp = "\\d{7,8}-[0-9kK]",
+        message = "Formato de RUT inválido (ej: 12345678-9)"
+    )
     private String rut;
 
-    @NotBlank
+    @NotBlank(message = "El nombre es obligatorio")
+    @Size(min = 3, message = "El nombre debe tener al menos 3 caracteres")
     private String name;
 
-    @NotBlank
-    private String role;
+    @NotNull(message = "El rol es obligatorio")
+    private UserRole role;
 
-    @NotBlank
+    @NotBlank(message = "La contraseña es obligatoria")
+    @Size(min = 4, message = "La contraseña debe tener al menos 4 caracteres")
     private String password;
-
 }

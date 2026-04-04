@@ -27,8 +27,9 @@ public class AppointmentService {
     //  Crear cita con validaciones completas
     public Appointment create(Appointment a) {
 
+        // Si no se envía fecha, asignar una por defecto (ej: 1 hora después de ahora)
         if (a.getDateTime() == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "La fecha no puede ser null");
+            a.setDateTime(LocalDateTime.now().plusHours(1));
         }
 
         // validar paciente
