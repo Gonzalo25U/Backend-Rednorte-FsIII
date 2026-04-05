@@ -27,10 +27,6 @@ public class UserService {
     //  Crear usuario con validaciones
     public User create(User user) {
 
-        //  Validar RUT
-        if (!RutValidator.isValid(user.getRut())) {
-            throw new BadRequestException("RUT inválido");
-        }
 
         //  Validar duplicado
         if (repository.findByRut(user.getRut()).isPresent()) {
@@ -57,26 +53,26 @@ public class UserService {
         System.out.println("Contraseña generada (mostrar solo una vez): " + generatedPassword);
 
         return repository.save(user);
-    }
-
-    //  Listar todos
-    public List<User> getAllUsers() {
-        return repository.findAll();
-    }
-
-    //  Buscar por RUT
-    public User getByRut(String rut) {
-        return repository.findByRut(rut)
-                .orElseThrow(() -> new NotFoundException("Usuario no encontrado"));
-    }
-
-    //  Eliminar usuario
-    public void deleteUser(Long id) {
-
-        if (!repository.existsById(id)) {
-            throw new NotFoundException("Usuario no encontrado");
         }
 
-        repository.deleteById(id);
-    }
+        //  Listar todos
+        public List<User> getAllUsers() {
+            return repository.findAll();
+        }
+
+        //  Buscar por RUT
+        public User getByRut(String rut) {
+            return repository.findByRut(rut)
+                    .orElseThrow(() -> new NotFoundException("Usuario no encontrado"));
+        }
+
+        //  Eliminar usuario
+        public void deleteUser(Long id) {
+
+            if (!repository.existsById(id)) {
+                throw new NotFoundException("Usuario no encontrado");
+            }
+
+            repository.deleteById(id);
+        }
 }

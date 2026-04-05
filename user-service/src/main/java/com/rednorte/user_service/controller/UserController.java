@@ -23,18 +23,10 @@ public class UserController {
     }
 
     @PostMapping
-    public UserResponseDTO create(
-            @RequestBody UserRequestDTO dto,
-            @RequestHeader("role") String role
-    ) {
-        if (!role.equals("ADMIN")) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Solo ADMIN puede crear usuarios");
-        }
-
+    public UserResponseDTO create(@RequestBody UserRequestDTO dto) {
         User user = UserMapper.toEntity(dto);
         return UserMapper.toDTO(service.create(user));
     }
-
     @GetMapping
     public List<User> list() {
         return service.getAllUsers();
