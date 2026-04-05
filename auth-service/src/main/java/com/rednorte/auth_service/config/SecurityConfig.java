@@ -23,6 +23,11 @@ public class SecurityConfig {
                 // 🔓 opcional (por seguridad déjalo igual)
                 .requestMatchers("/auth/**").permitAll()
 
+                .requestMatchers(
+                    "/swagger-ui/**",
+                    "/v3/api-docs/**"
+                ).permitAll()
+
                 // 🔒 todo lo demás protegido
                 .anyRequest().authenticated()
             );

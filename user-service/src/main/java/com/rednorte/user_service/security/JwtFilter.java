@@ -2,6 +2,7 @@ package com.rednorte.user_service.security;
 
 import java.io.IOException;
 import java.util.List;
+
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -22,19 +23,28 @@ public class JwtFilter extends OncePerRequestFilter {
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
-                                    HttpServletResponse response,
-                                    FilterChain filterChain) throws ServletException, IOException {
+                                   HttpServletResponse response,
+                                   FilterChain filterChain) throws ServletException, IOException {
+
+        String path = request.getRequestURI();
+
+        // 🔥 EXCLUIR SWAGGER
+        if (path.contains("/swagger-ui") || path.contains("/v3/api-docs")) {
+            filterChain.doFilter(request, response);
+            return;
+        }
 
         String authHeader = request.getHeader("Authorization");
 
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             String token = authHeader.substring(7);
+
             if (jwtUtil.validateToken(token)) {
                 String rut = jwtUtil.getRut(token);
                 String role = jwtUtil.getRole(token);
 
                 List<SimpleGrantedAuthority> authorities =
-                        List.of(new SimpleGrantedAuthority("ROLE_" + role)); // 🔥 clave
+                        List.of(new SimpleGrantedAuthority("ROLE_" + role));
 
                 UsernamePasswordAuthenticationToken authToken =
                         new UsernamePasswordAuthenticationToken(rut, null, authorities);
