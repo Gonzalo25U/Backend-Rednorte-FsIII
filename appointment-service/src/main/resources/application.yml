@@ -6,7 +6,7 @@ spring:
     name: appointment-service
 
   datasource:
-    url: jdbc:h2:mem:testdb
+    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
     driver-class-name: org.h2.Driver
     username: sa
     password: "1234"
@@ -16,11 +16,16 @@ spring:
     hibernate:
       ddl-auto: update
     show-sql: true
+
   h2:
     console:
       enabled: true
+      settings:
+        web-allow-others: true  # necesario en Docker
 
 eureka:
   client:
     service-url:
-      defaultZone: http://localhost:8761/eureka
+      defaultZone: http://eureka-server:8761/eureka/
+  instance:
+    prefer-ip-address: true

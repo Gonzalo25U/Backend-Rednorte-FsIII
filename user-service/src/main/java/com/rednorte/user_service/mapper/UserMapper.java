@@ -10,7 +10,7 @@ public class UserMapper {
         User user = new User();
 
         user.setRut(dto.getRut());
-        user.setName(dto.getName());
+        user.setName(dto.getName());            
         user.setPassword(dto.getPassword());
 
         // ✅ ahora el DTO ya trae el enum validado
