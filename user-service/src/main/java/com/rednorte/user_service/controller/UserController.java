@@ -1,15 +1,14 @@
 package com.rednorte.user_service.controller;
 
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.server.ResponseStatusException;
 
 import com.rednorte.user_service.dto.UserRequestDTO;
 import com.rednorte.user_service.dto.UserResponseDTO;
 import com.rednorte.user_service.mapper.UserMapper;
 import com.rednorte.user_service.model.User;
 import com.rednorte.user_service.service.UserService;
+
 import java.util.List;
 
 @RestController
@@ -22,26 +21,42 @@ public class UserController {
         this.service = service;
     }
 
+    // Crear usuario — devuelve contraseña generada
     @PostMapping
     public UserResponseDTO create(@RequestBody UserRequestDTO dto) {
         User user = UserMapper.toEntity(dto);
-        return UserMapper.toDTO(service.create(user));
+        String[] result = service.create(user);
+        String generatedPassword = result[1];
+        User saved = service.getByRut(user.getRut());
+        return UserMapper.toDTOWithPassword(saved, generatedPassword);
     }
+
+    // Listar todos
     @GetMapping
     public List<User> list() {
         return service.getAllUsers();
     }
 
-    @GetMapping("/{rut}")
+    // Buscar por RUT — usado internamente por auth-service
+    @GetMapping("/rut/{rut}")
     public ResponseEntity<?> getByRut(@PathVariable String rut) {
         User user = service.getByRut(rut);
-
         if (user == null) {
-            return ResponseEntity.notFound().build(); // ✅ 404 correcto
+            return ResponseEntity.notFound().build();
         }
-
         return ResponseEntity.ok(user);
     }
+
+    // Editar contraseña — solo ADMIN
+    @PutMapping("/{rut}/password")
+    public ResponseEntity<?> updatePassword(
+            @PathVariable String rut,
+            @RequestParam String newPassword) {
+        service.updatePassword(rut, newPassword);
+        return ResponseEntity.ok("Contraseña actualizada");
+    }
+
+    // Eliminar usuario
     @DeleteMapping("/{id}")
     public void delete(@PathVariable Long id) {
         service.deleteUser(id);

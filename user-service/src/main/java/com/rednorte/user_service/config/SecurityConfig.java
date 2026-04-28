@@ -4,6 +4,7 @@ import com.rednorte.user_service.security.JwtFilter;
 import com.rednorte.user_service.security.JwtUtil;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
@@ -25,17 +26,15 @@ public class SecurityConfig {
         http
             .csrf(csrf -> csrf.disable())
             .authorizeHttpRequests(auth -> auth
-
                 .requestMatchers(
                     "/swagger-ui/**",
                     "/v3/api-docs/**"
                 ).permitAll()
-
-                .requestMatchers("/users/**").permitAll()
-
-
-
-
+                .requestMatchers(HttpMethod.GET, "/users/rut/**").permitAll()
+                .requestMatchers(HttpMethod.POST, "/users").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.GET, "/users").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.DELETE, "/users/**").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.PUT, "/users/**/password").hasRole("ADMIN")
                 .anyRequest().authenticated()
             )
             .addFilterBefore(new JwtFilter(jwtUtil), UsernamePasswordAuthenticationFilter.class);

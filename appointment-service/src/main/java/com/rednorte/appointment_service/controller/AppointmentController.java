@@ -7,9 +7,7 @@ import com.rednorte.appointment_service.mapper.AppointmentMapper;
 import com.rednorte.appointment_service.model.Appointment;
 import com.rednorte.appointment_service.service.AppointmentService;
 
-import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 
@@ -23,7 +21,7 @@ public class AppointmentController {
         this.service = service;
     }
 
-    // ✅ Crear
+    // Crear cita - PACIENTE o ADMIN
     @PostMapping
     public AppointmentResponseDTO create(@RequestBody AppointmentRequestDTO dto) {
         Appointment a = AppointmentMapper.toEntity(dto);
@@ -31,7 +29,7 @@ public class AppointmentController {
         return AppointmentMapper.toDTO(saved);
     }
 
-    // ✅ Listar
+    // Listar citas - todos los roles autenticados
     @GetMapping
     public List<AppointmentResponseDTO> list() {
         return service.getAll()
@@ -40,23 +38,18 @@ public class AppointmentController {
                 .toList();
     }
 
-    // ✅ Cancelar cita (con motivo)
+    // Cancelar cita con motivo - PACIENTE o ADMIN
     @PutMapping("/{id}/cancel")
     public void cancel(@PathVariable Long id, @RequestParam String reason) {
         service.cancel(id, reason);
     }
 
-    // ✅ Cambiar estado (APROBAR, etc.)
+    // Cambiar estado - MEDICO o ADMIN (validado por SecurityConfig)
     @PutMapping("/{id}/status")
     public void updateStatus(
             @PathVariable Long id,
-            @RequestParam String status,
-            @RequestHeader("role") String role // 👈 temporal
+            @RequestParam String status
     ) {
-        if (!role.equals("DOCTOR")) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Solo doctores pueden cambiar estado");
-        }
-
         service.updateStatus(id, AppointmentStatus.valueOf(status.toUpperCase()));
     }
 }

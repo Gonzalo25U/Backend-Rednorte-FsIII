@@ -1,7 +1,10 @@
 package com.rednorte.auth_service.service;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
+
 import com.rednorte.auth_service.client.UserClient;
 import com.rednorte.auth_service.dto.LoginRequest;
 import com.rednorte.auth_service.dto.UserResponse;
@@ -21,14 +24,16 @@ public class AuthService {
 
     public String login(LoginRequest request) {
 
-        System.out.println("🔍 Buscando usuario con rut: " + request.getRut());
-
         UserResponse user = userClient.getUserByRut(request.getRut());
 
-        System.out.println("👤 Usuario obtenido: " + user);
-
         if (user == null) {
-            throw new RuntimeException("Usuario no encontrado");
+            System.out.println("❌ Usuario no encontrado");
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Credenciales inválidas");
+        }
+
+        if (!user.isActive()) {
+            System.out.println("❌ Usuario inactivo");
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Usuario inactivo");
         }
 
         System.out.println("🔑 Password ingresada: " + request.getPassword());
@@ -36,14 +41,14 @@ public class AuthService {
 
         boolean match = encoder.matches(request.getPassword(), user.getPassword());
 
-        System.out.println("✅ Password match: " + match);
+        System.out.println("✅ Match: " + match);
 
         if (!match) {
-            throw new RuntimeException("Credenciales inválidas");
+            System.out.println("❌ Contraseña incorrecta");
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Credenciales inválidas");
         }
 
         String token = jwtUtil.generateToken(user.getRut(), user.getRole());
-
         System.out.println("🎟️ Token generado: " + token);
 
         return token;

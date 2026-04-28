@@ -8,24 +8,34 @@ public class UserMapper {
 
     public static User toEntity(UserRequestDTO dto) {
         User user = new User();
-
         user.setRut(dto.getRut());
-        user.setName(dto.getName());            
+        user.setName(dto.getName());
         user.setPassword(dto.getPassword());
-
-        // ✅ ahora el DTO ya trae el enum validado
         user.setRole(dto.getRole());
-
         return user;
     }
 
+    // Para listado y consultas — sin contraseña generada
     public static UserResponseDTO toDTO(User user) {
         return new UserResponseDTO(
                 user.getId(),
                 user.getRut(),
                 user.getName(),
                 user.getRole(),
-                user.isActive()
+                user.isActive(),
+                null
+        );
+    }
+
+    // Para creación — incluye la contraseña generada
+    public static UserResponseDTO toDTOWithPassword(User user, String generatedPassword) {
+        return new UserResponseDTO(
+                user.getId(),
+                user.getRut(),
+                user.getName(),
+                user.getRole(),
+                user.isActive(),
+                generatedPassword
         );
     }
 }

@@ -1,9 +1,12 @@
 server:
   port: 8084
-  
+
 spring:
   application:
     name: auth-service
+
+jwt:
+  secret: ${JWT_SECRET}
 
 eureka:
   client:

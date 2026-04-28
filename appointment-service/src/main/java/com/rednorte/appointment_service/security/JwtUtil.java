@@ -1,4 +1,4 @@
-package com.rednorte.user_service.security;
+package com.rednorte.appointment_service.security;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;

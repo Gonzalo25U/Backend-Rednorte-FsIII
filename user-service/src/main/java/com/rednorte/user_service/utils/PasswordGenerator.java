@@ -1,20 +1,25 @@
 package com.rednorte.user_service.utils;
 
-import java.util.Random;
-
 public class PasswordGenerator {
 
-    private static final String[] WORDS = {
-        "sol", "luna", "mar", "nube", "roca",
-        "fuego", "tierra", "viento", "rio", "cielo"
-    };
+    public static String generate(String name, String rut) {
+        // Tomar primer caracter del nombre (mayúscula)
+        String namePart = name != null && !name.isEmpty()
+                ? String.valueOf(name.charAt(0)).toUpperCase()
+                : "X";
 
-    private static final Random RANDOM = new Random();
+        // Tomar últimos 2 dígitos del RUT (sin guión ni dígito verificador)
+        String cleanRut = rut.replaceAll("[^0-9]", "");
+        String rutPart = cleanRut.length() >= 2
+                ? cleanRut.substring(cleanRut.length() - 2)
+                : cleanRut;
 
-    public static String generate() {
-        return WORDS[RANDOM.nextInt(WORDS.length)] + "-" +
-               RANDOM.nextInt(100) + "-" +
-               WORDS[RANDOM.nextInt(WORDS.length)] + "-" +
-               RANDOM.nextInt(100);
+        // Tomar último caracter del nombre (minúscula)
+        String nameLast = name != null && name.length() > 1
+                ? String.valueOf(name.charAt(name.length() - 1)).toLowerCase()
+                : "x";
+
+        // Resultado: 4 caracteres, ej: "T22o" para nombre "Test" y rut "22222222-2"
+        return namePart + rutPart + nameLast;
     }
 }

@@ -24,16 +24,13 @@ public class UserService {
         this.passwordEncoder = passwordEncoder;
     }
 
-    //  Crear usuario con validaciones
-    public User create(User user) {
+    // Crear usuario — devuelve la contraseña generada en texto plano
+    public String[] create(User user) {
 
-
-        //  Validar duplicado
         if (repository.findByRut(user.getRut()).isPresent()) {
             throw new BadRequestException("El RUT ya está registrado");
         }
 
-        //  Validar ADMIN único
         if (user.getRole() == UserRole.ADMIN) {
             boolean existsAdmin = repository.existsByRole(UserRole.ADMIN);
             if (existsAdmin) {
@@ -41,38 +38,40 @@ public class UserService {
             }
         }
 
-        //  Generar contraseña automática (PLANO)
-        String generatedPassword = PasswordGenerator.generate();
+        // Generar contraseña de 4 caracteres basada en nombre y RUT
+        String generatedPassword = PasswordGenerator.generate(user.getName(), user.getRut());
 
-        //  Encriptar con BCrypt
-        String encodedPassword = passwordEncoder.encode(generatedPassword);
+        // Encriptar y guardar
+        user.setPassword(passwordEncoder.encode(generatedPassword));
 
-        user.setPassword(encodedPassword);
+        User saved = repository.save(user);
 
-        //  IMPORTANTE: podrías logear o devolver la password generada al admin
-        System.out.println("Contraseña generada (mostrar solo una vez): " + generatedPassword);
+        // Devolver [id, generatedPassword] para que el controller arme el DTO
+        return new String[]{String.valueOf(saved.getId()), generatedPassword};
+    }
 
-        return repository.save(user);
+    // Editar contraseña
+    public void updatePassword(String rut, String newPassword) {
+        User user = repository.findByRut(rut)
+                .orElseThrow(() -> new NotFoundException("Usuario no encontrado"));
+
+        user.setPassword(passwordEncoder.encode(newPassword));
+        repository.save(user);
+    }
+
+    public List<User> getAllUsers() {
+        return repository.findAll();
+    }
+
+    public User getByRut(String rut) {
+        return repository.findByRut(rut)
+                .orElseThrow(() -> new NotFoundException("Usuario no encontrado"));
+    }
+
+    public void deleteUser(Long id) {
+        if (!repository.existsById(id)) {
+            throw new NotFoundException("Usuario no encontrado");
         }
-
-        //  Listar todos
-        public List<User> getAllUsers() {
-            return repository.findAll();
-        }
-
-        //  Buscar por RUT
-        public User getByRut(String rut) {
-            return repository.findByRut(rut)
-                    .orElseThrow(() -> new NotFoundException("Usuario no encontrado"));
-        }
-
-        //  Eliminar usuario
-        public void deleteUser(Long id) {
-
-            if (!repository.existsById(id)) {
-                throw new NotFoundException("Usuario no encontrado");
-            }
-
-            repository.deleteById(id);
-        }
+        repository.deleteById(id);
+    }
 }

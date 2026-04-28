@@ -13,19 +13,19 @@ public class UserClient {
     public UserClient(RestTemplate restTemplate) {
         this.restTemplate = restTemplate;
     }
+
     public boolean existsUser(String rut) {
         try {
-            String url = "http://localhost:8081/users/" + rut;
+            String url = "http://user-service:8081/users/rut/" + rut;
             restTemplate.getForObject(url, Object.class);
             return true;
 
         } catch (HttpClientErrorException e) {
 
             if (e.getStatusCode() == HttpStatus.NOT_FOUND) {
-                return false; // 👈 usuario no existe (OK)
+                return false;
             }
 
-            // otro error HTTP
             throw new RuntimeException("Error en user-service: " + e.getStatusCode());
 
         } catch (Exception e) {
