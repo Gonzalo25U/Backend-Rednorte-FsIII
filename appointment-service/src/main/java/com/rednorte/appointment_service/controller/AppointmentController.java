@@ -2,11 +2,15 @@ package com.rednorte.appointment_service.controller;
 
 import com.rednorte.appointment_service.dto.AppointmentRequestDTO;
 import com.rednorte.appointment_service.dto.AppointmentResponseDTO;
+import com.rednorte.appointment_service.dto.CancelRequestDTO;
+import com.rednorte.appointment_service.dto.MedicalRecordDTO;
+import com.rednorte.appointment_service.enums.AppointmentPriority;
 import com.rednorte.appointment_service.enums.AppointmentStatus;
 import com.rednorte.appointment_service.mapper.AppointmentMapper;
 import com.rednorte.appointment_service.model.Appointment;
 import com.rednorte.appointment_service.service.AppointmentService;
 
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -21,7 +25,6 @@ public class AppointmentController {
         this.service = service;
     }
 
-    // Crear cita - PACIENTE o ADMIN
     @PostMapping
     public AppointmentResponseDTO create(@RequestBody AppointmentRequestDTO dto) {
         Appointment a = AppointmentMapper.toEntity(dto);
@@ -29,27 +32,42 @@ public class AppointmentController {
         return AppointmentMapper.toDTO(saved);
     }
 
-    // Listar citas - todos los roles autenticados
     @GetMapping
     public List<AppointmentResponseDTO> list() {
-        return service.getAll()
-                .stream()
-                .map(AppointmentMapper::toDTO)
-                .toList();
+        return service.getAll().stream().map(AppointmentMapper::toDTO).toList();
     }
 
-    // Cancelar cita con motivo - PACIENTE o ADMIN
+    @GetMapping("/patient/{rut}")
+    public List<AppointmentResponseDTO> listByPatient(@PathVariable String rut) {
+        return service.getByPatientRut(rut).stream().map(AppointmentMapper::toDTO).toList();
+    }
+
+    @GetMapping("/doctor/{rut}")
+    public List<AppointmentResponseDTO> listByDoctor(@PathVariable String rut) {
+        return service.getByDoctorRut(rut).stream().map(AppointmentMapper::toDTO).toList();
+    }
+
     @PutMapping("/{id}/cancel")
-    public void cancel(@PathVariable Long id, @RequestParam String reason) {
-        service.cancel(id, reason);
+    public ResponseEntity<?> cancel(@PathVariable Long id, @RequestBody CancelRequestDTO dto) {
+        service.cancel(id, dto.getReason());
+        return ResponseEntity.ok("Cita cancelada");
     }
 
-    // Cambiar estado - MEDICO o ADMIN (validado por SecurityConfig)
     @PutMapping("/{id}/status")
-    public void updateStatus(
-            @PathVariable Long id,
-            @RequestParam String status
-    ) {
+    public ResponseEntity<?> updateStatus(@PathVariable Long id, @RequestParam String status) {
         service.updateStatus(id, AppointmentStatus.valueOf(status.toUpperCase()));
+        return ResponseEntity.ok("Estado actualizado");
+    }
+
+    @PutMapping("/{id}/priority")
+    public ResponseEntity<?> updatePriority(@PathVariable Long id, @RequestParam String priority) {
+        service.updatePriority(id, AppointmentPriority.valueOf(priority.toUpperCase()));
+        return ResponseEntity.ok("Prioridad actualizada");
+    }
+
+    @PutMapping("/{id}/medical-record")
+    public ResponseEntity<?> saveMedicalRecord(@PathVariable Long id, @RequestBody MedicalRecordDTO dto) {
+        service.saveMedicalRecord(id, dto);
+        return ResponseEntity.ok("Registro médico guardado");
     }
 }

@@ -9,7 +9,6 @@ import java.time.LocalDateTime;
 import com.rednorte.appointment_service.enums.AppointmentPriority;
 import com.rednorte.appointment_service.enums.AppointmentStatus;
 
-
 @Entity
 @Getter
 @Setter
@@ -20,8 +19,10 @@ public class Appointment {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
     @NotBlank
     private String patientRut;
+
     @NotBlank
     private String doctorRut;
 
@@ -34,4 +35,9 @@ public class Appointment {
     private AppointmentPriority priority;
 
     private String cancelReason;
+
+    // Campos médicos registrados por el doctor
+    private String prescription;   // Receta médica
+    private String indications;    // Indicaciones
+    private Integer restDays;      // Días de reposo
 }

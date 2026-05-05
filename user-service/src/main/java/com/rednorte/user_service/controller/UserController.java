@@ -3,6 +3,7 @@ package com.rednorte.user_service.controller;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import com.rednorte.user_service.dto.PasswordUpdateDTO;
 import com.rednorte.user_service.dto.UserRequestDTO;
 import com.rednorte.user_service.dto.UserResponseDTO;
 import com.rednorte.user_service.mapper.UserMapper;
@@ -21,7 +22,6 @@ public class UserController {
         this.service = service;
     }
 
-    // Crear usuario — devuelve contraseña generada
     @PostMapping
     public UserResponseDTO create(@RequestBody UserRequestDTO dto) {
         User user = UserMapper.toEntity(dto);
@@ -31,13 +31,11 @@ public class UserController {
         return UserMapper.toDTOWithPassword(saved, generatedPassword);
     }
 
-    // Listar todos
     @GetMapping
     public List<User> list() {
         return service.getAllUsers();
     }
 
-    // Buscar por RUT — usado internamente por auth-service
     @GetMapping("/rut/{rut}")
     public ResponseEntity<?> getByRut(@PathVariable String rut) {
         User user = service.getByRut(rut);
@@ -47,16 +45,13 @@ public class UserController {
         return ResponseEntity.ok(user);
     }
 
-    // Editar contraseña — solo ADMIN
-    @PutMapping("/{rut}/password")
-    public ResponseEntity<?> updatePassword(
-            @PathVariable String rut,
-            @RequestParam String newPassword) {
-        service.updatePassword(rut, newPassword);
+    // Recibe rut y newPassword en el body para evitar problemas con el guión en la URL
+    @PutMapping("/password")
+    public ResponseEntity<?> updatePassword(@RequestBody PasswordUpdateDTO dto) {
+        service.updatePassword(dto.getRut(), dto.getNewPassword());
         return ResponseEntity.ok("Contraseña actualizada");
     }
 
-    // Eliminar usuario
     @DeleteMapping("/{id}")
     public void delete(@PathVariable Long id) {
         service.deleteUser(id);

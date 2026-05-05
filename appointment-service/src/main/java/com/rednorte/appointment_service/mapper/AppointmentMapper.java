@@ -10,14 +10,10 @@ public class AppointmentMapper {
 
     public static Appointment toEntity(AppointmentRequestDTO dto) {
         Appointment a = new Appointment();
-
         a.setPatientRut(dto.getPatientRut());
         a.setDoctorRut(dto.getDoctorRut());
-
-        // ✅ usar enums
         a.setStatus(AppointmentStatus.PENDIENTE);
-        a.setPriority(AppointmentPriority.C); // default
-
+        a.setPriority(AppointmentPriority.C);
         return a;
     }
 
@@ -27,8 +23,12 @@ public class AppointmentMapper {
                 a.getPatientRut(),
                 a.getDoctorRut(),
                 a.getDateTime(),
-                a.getStatus().name(),     // ✅ enum → String
-                a.getPriority().name()    // ✅ enum → String
+                a.getStatus().name(),
+                a.getPriority().name(),
+                a.getCancelReason(),
+                a.getPrescription(),
+                a.getIndications(),
+                a.getRestDays()
         );
     }
 }

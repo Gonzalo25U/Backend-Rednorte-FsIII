@@ -1,0 +1,19 @@
+server:
+  port: 8085
+
+spring:
+  application:
+    name: bff-service
+
+jwt:
+  secret: ${JWT_SECRET}
+
+gateway:
+  url: http://gateway-service:8082
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://eureka-server:8761/eureka/
+  instance:
+    prefer-ip-address: true

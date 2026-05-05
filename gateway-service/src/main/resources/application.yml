@@ -23,6 +23,11 @@ spring:
             allowCredentials: true
 
       routes:
+        - id: bff-service
+          uri: lb://BFF-SERVICE
+          predicates:
+            - Path=/bff/**
+
         - id: user-service
           uri: lb://USER-SERVICE
           predicates:

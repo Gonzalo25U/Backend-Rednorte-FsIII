@@ -3,13 +3,13 @@ package com.rednorte.user_service.service;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
-import com.rednorte.user_service.utils.RutValidator;
 import com.rednorte.user_service.exception.BadRequestException;
 import com.rednorte.user_service.exception.NotFoundException;
 import com.rednorte.user_service.enums.UserRole;
 import com.rednorte.user_service.model.User;
 import com.rednorte.user_service.repository.UserRepository;
 import com.rednorte.user_service.utils.PasswordGenerator;
+import com.rednorte.user_service.utils.RutValidator;
 
 import java.util.List;
 
@@ -24,8 +24,12 @@ public class UserService {
         this.passwordEncoder = passwordEncoder;
     }
 
-    // Crear usuario — devuelve la contraseña generada en texto plano
     public String[] create(User user) {
+
+        // Validar formato del RUT
+        if (!RutValidator.isValid(user.getRut())) {
+            throw new BadRequestException("RUT inválido. Formato requerido: xxxxxxxx-x");
+        }
 
         if (repository.findByRut(user.getRut()).isPresent()) {
             throw new BadRequestException("El RUT ya está registrado");
@@ -38,19 +42,14 @@ public class UserService {
             }
         }
 
-        // Generar contraseña de 4 caracteres basada en nombre y RUT
         String generatedPassword = PasswordGenerator.generate(user.getName(), user.getRut());
-
-        // Encriptar y guardar
         user.setPassword(passwordEncoder.encode(generatedPassword));
 
         User saved = repository.save(user);
 
-        // Devolver [id, generatedPassword] para que el controller arme el DTO
         return new String[]{String.valueOf(saved.getId()), generatedPassword};
     }
 
-    // Editar contraseña
     public void updatePassword(String rut, String newPassword) {
         User user = repository.findByRut(rut)
                 .orElseThrow(() -> new NotFoundException("Usuario no encontrado"));

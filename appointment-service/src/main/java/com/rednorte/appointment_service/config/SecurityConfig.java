@@ -24,32 +24,22 @@ public class SecurityConfig {
         http
             .csrf(csrf -> csrf.disable())
             .authorizeHttpRequests(auth -> auth
-
-                // Swagger público
                 .requestMatchers(
-        "/swagger-ui/**",
+                    "/swagger-ui/**",
                     "/swagger-ui.html",
                     "/v3/api-docs/**",
                     "/v3/api-docs",
                     "/swagger-resources/**",
                     "/webjars/**"
                 ).permitAll()
-                // Paciente y Admin pueden crear citas
                 .requestMatchers(HttpMethod.POST, "/appointments")
                     .hasAnyRole("PACIENTE", "ADMIN")
-
-                // Todos los roles autenticados pueden ver citas
                 .requestMatchers(HttpMethod.GET, "/appointments")
-                    .hasAnyRole("ADMIN", "MEDICO", "PACIENTE")
-
-                // Solo el paciente o admin puede cancelar
+                    .hasAnyRole("ADMIN", "DOCTOR", "PACIENTE")
                 .requestMatchers(HttpMethod.PUT, "/appointments/*/cancel")
                     .hasAnyRole("PACIENTE", "ADMIN")
-
-                // Solo el médico puede cambiar estado
                 .requestMatchers(HttpMethod.PUT, "/appointments/*/status")
-                    .hasAnyRole("MEDICO", "ADMIN")
-
+                    .hasAnyRole("DOCTOR", "ADMIN")
                 .anyRequest().authenticated()
             )
             .addFilterBefore(new JwtFilter(jwtUtil), UsernamePasswordAuthenticationFilter.class);

@@ -60,3 +60,14 @@ services:
       - eureka-server
     environment:
       - JWT_SECRET=${JWT_SECRET}
+
+  bff-service:
+    build: ./bff-service
+    restart: on-failure
+    ports:
+      - "8085:8085"
+    depends_on:
+      - eureka-server
+      - gateway-service
+    environment:
+      - JWT_SECRET=${JWT_SECRET}

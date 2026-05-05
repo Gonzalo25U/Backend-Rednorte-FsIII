@@ -15,4 +15,8 @@ public class AppointmentResponseDTO {
     private LocalDateTime dateTime;
     private String status;
     private String priority;
+    private String cancelReason;
+    private String prescription;
+    private String indications;
+    private Integer restDays;
 }
