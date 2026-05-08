@@ -4,7 +4,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 import java.util.Map;
 
@@ -13,7 +14,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class AuthBffController {
 
-    private final RestTemplate restTemplate;
+    private final WebClient webClient;
 
     @Value("${gateway.url}")
     private String gatewayUrl;
@@ -21,21 +22,14 @@ public class AuthBffController {
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody Map<String, String> body) {
         try {
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
-
-            HttpEntity<Map<String, String>> request = new HttpEntity<>(body, headers);
-
-            ResponseEntity<Map> response = restTemplate.exchange(
-                gatewayUrl + "/api/auth/login",
-                HttpMethod.POST,
-                request,
-                Map.class
-            );
-
-            return ResponseEntity.ok(response.getBody());
-
-        } catch (Exception e) {
+            Map result = webClient.post()
+                    .uri(gatewayUrl + "/api/auth/login")
+                    .bodyValue(body)
+                    .retrieve()
+                    .bodyToMono(Map.class)
+                    .block();
+            return ResponseEntity.ok(result);
+        } catch (WebClientResponseException e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("error", "Credenciales inválidas"));
         }
