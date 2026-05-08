@@ -30,11 +30,17 @@ public class SecurityConfig {
                     "/swagger-ui/**",
                     "/v3/api-docs/**"
                 ).permitAll()
+
+                // Comunicación interna - sin restricción de rol
                 .requestMatchers(HttpMethod.GET, "/users/rut/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/users/doctors").permitAll()
+
+                // Solo ADMIN
                 .requestMatchers(HttpMethod.POST, "/users").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.GET, "/users").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.DELETE, "/users/**").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.PUT, "/users/password").hasRole("ADMIN")
+
                 .anyRequest().authenticated()
             )
             .addFilterBefore(new JwtFilter(jwtUtil), UsernamePasswordAuthenticationFilter.class);
