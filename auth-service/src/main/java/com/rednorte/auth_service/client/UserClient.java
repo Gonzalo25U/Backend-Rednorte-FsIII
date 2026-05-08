@@ -1,35 +1,29 @@
 package com.rednorte.auth_service.client;
 
-import org.springframework.http.ResponseEntity;
-import org.springframework.stereotype.Component;
-import org.springframework.web.client.RestTemplate;
 import com.rednorte.auth_service.dto.UserResponse;
-import org.springframework.http.ResponseEntity;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Component;
+import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
+
 @Component
+@RequiredArgsConstructor
 public class UserClient {
 
-    private final RestTemplate restTemplate;
-
-    public UserClient(RestTemplate restTemplate) {
-        this.restTemplate = restTemplate;
-    }
+    private final WebClient webClient;
 
     public UserResponse getUserByRut(String rut) {
         try {
-            String url = "http://user-service:8081/users/rut/" + rut;
-            System.out.println("🌐 Llamando a: " + url);
-            
-            ResponseEntity<UserResponse> response = restTemplate.getForEntity(url, UserResponse.class);
-            
-            System.out.println("📦 Status: " + response.getStatusCode());
-            System.out.println("📦 Body: " + response.getBody());
-            
-            return response.getBody();
+            return webClient.get()
+                    .uri("http://user-service:8081/users/rut/" + rut)
+                    .retrieve()
+                    .bodyToMono(UserResponse.class)
+                    .block(); // bloqueante para mantener compatibilidad con el servicio servlet
+        } catch (WebClientResponseException.NotFound e) {
+            return null;
         } catch (Exception e) {
-            System.out.println("💥 Error tipo: " + e.getClass().getName());
-            System.out.println("💥 Error mensaje: " + e.getMessage());
-            e.printStackTrace();
-            throw new RuntimeException("Usuario no encontrado");
+            System.out.println("💥 Error conectando con user-service: " + e.getMessage());
+            throw new RuntimeException("Error conectando con user-service");
         }
     }
 }
