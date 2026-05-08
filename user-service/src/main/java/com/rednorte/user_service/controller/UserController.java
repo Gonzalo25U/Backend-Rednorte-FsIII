@@ -6,6 +6,7 @@ import org.springframework.web.bind.annotation.*;
 import com.rednorte.user_service.dto.PasswordUpdateDTO;
 import com.rednorte.user_service.dto.UserRequestDTO;
 import com.rednorte.user_service.dto.UserResponseDTO;
+import com.rednorte.user_service.enums.UserRole;
 import com.rednorte.user_service.mapper.UserMapper;
 import com.rednorte.user_service.model.User;
 import com.rednorte.user_service.service.UserService;
@@ -36,6 +37,14 @@ public class UserController {
         return service.getAllUsers();
     }
 
+    // Endpoint interno para obtener solo doctores activos - usado por el BFF
+    @GetMapping("/doctors")
+    public List<User> listDoctors() {
+        return service.getAllUsers().stream()
+                .filter(u -> u.getRole() == UserRole.DOCTOR && u.isActive())
+                .toList();
+    }
+
     @GetMapping("/rut/{rut}")
     public ResponseEntity<?> getByRut(@PathVariable String rut) {
         User user = service.getByRut(rut);
@@ -45,7 +54,6 @@ public class UserController {
         return ResponseEntity.ok(user);
     }
 
-    // Recibe rut y newPassword en el body para evitar problemas con el guión en la URL
     @PutMapping("/password")
     public ResponseEntity<?> updatePassword(@RequestBody PasswordUpdateDTO dto) {
         service.updatePassword(dto.getRut(), dto.getNewPassword());
