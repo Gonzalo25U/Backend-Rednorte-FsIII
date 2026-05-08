@@ -4,9 +4,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.client.HttpClientErrorException;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -14,32 +15,26 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class AdminBffController {
 
-    private final RestTemplate restTemplate;
+    private final WebClient webClient;
 
     @Value("${gateway.url}")
     private String gatewayUrl;
 
-    private HttpHeaders buildHeaders(String authHeader) {
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        if (authHeader != null) {
-            headers.set("Authorization", authHeader);
-        }
-        return headers;
+    private WebClient.RequestHeadersSpec<?> withAuth(WebClient.RequestHeadersSpec<?> spec, String authHeader) {
+        return spec.header("Authorization", authHeader);
     }
 
     @GetMapping("/users")
     public ResponseEntity<?> getUsers(@RequestHeader("Authorization") String authHeader) {
         try {
-            HttpEntity<?> request = new HttpEntity<>(buildHeaders(authHeader));
-            ResponseEntity<Object[]> response = restTemplate.exchange(
-                gatewayUrl + "/api/users",
-                HttpMethod.GET,
-                request,
-                Object[].class
-            );
-            return ResponseEntity.ok(response.getBody());
-        } catch (HttpClientErrorException e) {
+            List result = webClient.get()
+                    .uri(gatewayUrl + "/api/users")
+                    .header("Authorization", authHeader)
+                    .retrieve()
+                    .bodyToMono(List.class)
+                    .block();
+            return ResponseEntity.ok(result);
+        } catch (WebClientResponseException e) {
             return ResponseEntity.status(e.getStatusCode()).body(Map.of("error", e.getMessage()));
         }
     }
@@ -49,16 +44,16 @@ public class AdminBffController {
             @RequestHeader("Authorization") String authHeader,
             @RequestBody Map<String, Object> body) {
         try {
-            HttpEntity<Map<String, Object>> request = new HttpEntity<>(body, buildHeaders(authHeader));
-            ResponseEntity<Object> response = restTemplate.exchange(
-                gatewayUrl + "/api/users",
-                HttpMethod.POST,
-                request,
-                Object.class
-            );
-            return ResponseEntity.ok(response.getBody());
-        } catch (HttpClientErrorException e) {
-            return ResponseEntity.status(e.getStatusCode()).body(Map.of("error", e.getMessage()));
+            Object result = webClient.post()
+                    .uri(gatewayUrl + "/api/users")
+                    .header("Authorization", authHeader)
+                    .bodyValue(body)
+                    .retrieve()
+                    .bodyToMono(Object.class)
+                    .block();
+            return ResponseEntity.ok(result);
+        } catch (WebClientResponseException e) {
+            return ResponseEntity.status(e.getStatusCode()).body(Map.of("error", e.getResponseBodyAsString()));
         }
     }
 
@@ -67,15 +62,14 @@ public class AdminBffController {
             @RequestHeader("Authorization") String authHeader,
             @PathVariable Long id) {
         try {
-            HttpEntity<?> request = new HttpEntity<>(buildHeaders(authHeader));
-            restTemplate.exchange(
-                gatewayUrl + "/api/users/" + id,
-                HttpMethod.DELETE,
-                request,
-                Void.class
-            );
+            webClient.delete()
+                    .uri(gatewayUrl + "/api/users/" + id)
+                    .header("Authorization", authHeader)
+                    .retrieve()
+                    .toBodilessEntity()
+                    .block();
             return ResponseEntity.ok(Map.of("message", "Usuario eliminado"));
-        } catch (HttpClientErrorException e) {
+        } catch (WebClientResponseException e) {
             return ResponseEntity.status(e.getStatusCode()).body(Map.of("error", e.getMessage()));
         }
     }
@@ -85,15 +79,15 @@ public class AdminBffController {
             @RequestHeader("Authorization") String authHeader,
             @RequestBody Map<String, String> body) {
         try {
-            HttpEntity<Map<String, String>> request = new HttpEntity<>(body, buildHeaders(authHeader));
-            restTemplate.exchange(
-                gatewayUrl + "/api/users/password",
-                HttpMethod.PUT,
-                request,
-                Void.class
-            );
+            webClient.put()
+                    .uri(gatewayUrl + "/api/users/password")
+                    .header("Authorization", authHeader)
+                    .bodyValue(body)
+                    .retrieve()
+                    .toBodilessEntity()
+                    .block();
             return ResponseEntity.ok(Map.of("message", "Contraseña actualizada"));
-        } catch (HttpClientErrorException e) {
+        } catch (WebClientResponseException e) {
             return ResponseEntity.status(e.getStatusCode()).body(Map.of("error", e.getMessage()));
         }
     }

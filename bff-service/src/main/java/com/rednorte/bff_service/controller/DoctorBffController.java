@@ -6,9 +6,10 @@ import org.springframework.http.*;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.client.HttpClientErrorException;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -16,19 +17,10 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class DoctorBffController {
 
-    private final RestTemplate restTemplate;
+    private final WebClient webClient;
 
     @Value("${gateway.url}")
     private String gatewayUrl;
-
-    private HttpHeaders buildHeaders(String authHeader) {
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        if (authHeader != null) {
-            headers.set("Authorization", authHeader);
-        }
-        return headers;
-    }
 
     private String getCurrentRut() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -38,16 +30,14 @@ public class DoctorBffController {
     @GetMapping("/me")
     public ResponseEntity<?> getMyInfo(@RequestHeader("Authorization") String authHeader) {
         try {
-            String rut = getCurrentRut();
-            HttpEntity<?> request = new HttpEntity<>(buildHeaders(authHeader));
-            ResponseEntity<Object> response = restTemplate.exchange(
-                gatewayUrl + "/api/users/rut/" + rut,
-                HttpMethod.GET,
-                request,
-                Object.class
-            );
-            return ResponseEntity.ok(response.getBody());
-        } catch (HttpClientErrorException e) {
+            Object result = webClient.get()
+                    .uri(gatewayUrl + "/api/users/rut/" + getCurrentRut())
+                    .header("Authorization", authHeader)
+                    .retrieve()
+                    .bodyToMono(Object.class)
+                    .block();
+            return ResponseEntity.ok(result);
+        } catch (WebClientResponseException e) {
             return ResponseEntity.status(e.getStatusCode()).body(Map.of("error", e.getMessage()));
         }
     }
@@ -55,16 +45,14 @@ public class DoctorBffController {
     @GetMapping("/appointments")
     public ResponseEntity<?> getMyAppointments(@RequestHeader("Authorization") String authHeader) {
         try {
-            String rut = getCurrentRut();
-            HttpEntity<?> request = new HttpEntity<>(buildHeaders(authHeader));
-            ResponseEntity<Object[]> response = restTemplate.exchange(
-                gatewayUrl + "/api/appointments/doctor/" + rut,
-                HttpMethod.GET,
-                request,
-                Object[].class
-            );
-            return ResponseEntity.ok(response.getBody());
-        } catch (HttpClientErrorException e) {
+            List result = webClient.get()
+                    .uri(gatewayUrl + "/api/appointments/doctor/" + getCurrentRut())
+                    .header("Authorization", authHeader)
+                    .retrieve()
+                    .bodyToMono(List.class)
+                    .block();
+            return ResponseEntity.ok(result);
+        } catch (WebClientResponseException e) {
             return ResponseEntity.status(e.getStatusCode()).body(Map.of("error", e.getMessage()));
         }
     }
@@ -75,15 +63,14 @@ public class DoctorBffController {
             @PathVariable Long id,
             @RequestParam String priority) {
         try {
-            HttpEntity<?> request = new HttpEntity<>(buildHeaders(authHeader));
-            restTemplate.exchange(
-                gatewayUrl + "/api/appointments/" + id + "/priority?priority=" + priority,
-                HttpMethod.PUT,
-                request,
-                Void.class
-            );
+            webClient.put()
+                    .uri(gatewayUrl + "/api/appointments/" + id + "/priority?priority=" + priority)
+                    .header("Authorization", authHeader)
+                    .retrieve()
+                    .toBodilessEntity()
+                    .block();
             return ResponseEntity.ok(Map.of("message", "Prioridad actualizada"));
-        } catch (HttpClientErrorException e) {
+        } catch (WebClientResponseException e) {
             return ResponseEntity.status(e.getStatusCode()).body(Map.of("error", e.getMessage()));
         }
     }
@@ -94,15 +81,15 @@ public class DoctorBffController {
             @PathVariable Long id,
             @RequestBody Map<String, Object> body) {
         try {
-            HttpEntity<Map<String, Object>> request = new HttpEntity<>(body, buildHeaders(authHeader));
-            restTemplate.exchange(
-                gatewayUrl + "/api/appointments/" + id + "/medical-record",
-                HttpMethod.PUT,
-                request,
-                Void.class
-            );
+            webClient.put()
+                    .uri(gatewayUrl + "/api/appointments/" + id + "/medical-record")
+                    .header("Authorization", authHeader)
+                    .bodyValue(body)
+                    .retrieve()
+                    .toBodilessEntity()
+                    .block();
             return ResponseEntity.ok(Map.of("message", "Registro médico guardado"));
-        } catch (HttpClientErrorException e) {
+        } catch (WebClientResponseException e) {
             return ResponseEntity.status(e.getStatusCode()).body(Map.of("error", e.getMessage()));
         }
     }
