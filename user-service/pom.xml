@@ -28,6 +28,7 @@
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
 
+
         <!-- JPA -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -81,6 +82,7 @@
             <version>0.11.5</version>
         </dependency>
 
+        <!-- JWT Implementation -->
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
             <artifactId>jjwt-impl</artifactId>
@@ -88,6 +90,7 @@
             <scope>runtime</scope>
         </dependency>
 
+        <!-- JWT Jackson -->
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
             <artifactId>jjwt-jackson</artifactId>
@@ -102,6 +105,21 @@
             <scope>test</scope>
         </dependency>
 
+        <!-- Spring Security Test -->
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- H2 Database -->
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>test</scope>
+        </dependency>   
+
+        
     </dependencies>
 
     <dependencyManagement>
