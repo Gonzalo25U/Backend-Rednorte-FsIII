@@ -1,11 +1,15 @@
 package com.rednorte.user_service.service;
 
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import com.rednorte.user_service.dto.UserResponseDTO;
 import com.rednorte.user_service.exception.BadRequestException;
 import com.rednorte.user_service.exception.NotFoundException;
 import com.rednorte.user_service.enums.UserRole;
+import com.rednorte.user_service.mapper.UserMapper;
 import com.rednorte.user_service.model.User;
 import com.rednorte.user_service.repository.UserRepository;
 import com.rednorte.user_service.utils.PasswordGenerator;
@@ -24,9 +28,8 @@ public class UserService {
         this.passwordEncoder = passwordEncoder;
     }
 
+    @CacheEvict(value = "doctors", allEntries = true)
     public String[] create(User user) {
-
-        // Validar formato del RUT
         if (!RutValidator.isValid(user.getRut())) {
             throw new BadRequestException("RUT inválido. Formato requerido: xxxxxxxx-x");
         }
@@ -62,11 +65,20 @@ public class UserService {
         return repository.findAll();
     }
 
+    @Cacheable(value = "doctors")
+    public List<UserResponseDTO> getDoctors() {
+        return repository.findAll().stream()
+                .filter(u -> u.getRole() == UserRole.DOCTOR && u.isActive())
+                .map(UserMapper::toDTO)
+                .toList();
+    }
+
     public User getByRut(String rut) {
         return repository.findByRut(rut)
                 .orElseThrow(() -> new NotFoundException("Usuario no encontrado"));
     }
 
+    @CacheEvict(value = "doctors", allEntries = true)
     public void deleteUser(Long id) {
         if (!repository.existsById(id)) {
             throw new NotFoundException("Usuario no encontrado");
