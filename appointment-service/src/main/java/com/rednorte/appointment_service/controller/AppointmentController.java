@@ -14,6 +14,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/appointments")
@@ -69,5 +70,21 @@ public class AppointmentController {
     public ResponseEntity<?> saveMedicalRecord(@PathVariable Long id, @RequestBody MedicalRecordDTO dto) {
         service.saveMedicalRecord(id, dto);
         return ResponseEntity.ok("Registro médico guardado");
+    }
+
+    @PutMapping("/{id}/image-url")
+    public ResponseEntity<?> saveImageUrl(
+            @PathVariable Long id,
+            @RequestBody Map<String, String> body) {
+        service.saveImageUrl(id, body.get("imageUrl"));
+        return ResponseEntity.ok("Imagen del médico guardada");
+    }
+
+    @PutMapping("/{id}/patient-image-url")
+    public ResponseEntity<?> savePatientImageUrl(
+            @PathVariable Long id,
+            @RequestBody Map<String, String> body) {
+        service.savePatientImageUrl(id, body.get("patientImageUrl"));
+        return ResponseEntity.ok("Imagen del paciente guardada");
     }
 }

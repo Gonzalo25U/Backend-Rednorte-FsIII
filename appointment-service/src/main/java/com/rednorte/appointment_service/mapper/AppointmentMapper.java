@@ -24,11 +24,13 @@ public class AppointmentMapper {
                 a.getDoctorRut(),
                 a.getDateTime(),
                 a.getStatus().name(),
-                a.getPriority().name(),
+                a.getPriority() != null ? a.getPriority().name() : null,
                 a.getCancelReason(),
                 a.getPrescription(),
                 a.getIndications(),
-                a.getRestDays()
+                a.getRestDays(),
+                a.getImageUrl(),
+                a.getPatientImageUrl()
         );
     }
 }

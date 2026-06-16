@@ -36,8 +36,15 @@ public class Appointment {
 
     private String cancelReason;
 
-    // Campos médicos registrados por el doctor
-    private String prescription;   // Receta médica
-    private String indications;    // Indicaciones
-    private Integer restDays;      // Días de reposo
+    // Campos médicos
+    private String prescription;
+    private String indications;
+    private Integer restDays;
+
+    // URL de imagen adjunta subida por el médico
+    private String imageUrl;
+
+    // URL de imagen adjunta subida por el paciente
+    private String patientImageUrl;
+
 }

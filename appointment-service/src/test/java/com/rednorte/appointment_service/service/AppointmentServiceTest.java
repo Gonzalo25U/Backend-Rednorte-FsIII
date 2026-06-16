@@ -13,8 +13,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.web.server.ResponseStatusException;
-
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -31,6 +32,9 @@ class AppointmentServiceTest {
 
     @Mock
     private UserClient userClient;
+
+    @Mock
+    private RabbitTemplate rabbitTemplate;
 
     @InjectMocks
     private AppointmentService service;
@@ -309,6 +313,63 @@ class AppointmentServiceTest {
             when(repo.findById(99L)).thenReturn(Optional.empty());
 
             assertThatThrownBy(() -> service.saveMedicalRecord(99L, new MedicalRecordDTO()))
+                    .isInstanceOf(ResponseStatusException.class)
+                    .hasMessageContaining("Cita no encontrada");
+        }
+    }
+    // ── saveImageUrl() ────────────────────────────────────────────────────────
+
+@Nested
+@DisplayName("saveImageUrl()")
+class SaveImageUrl {
+
+    @Test
+    @DisplayName("Guarda la URL de imagen del médico correctamente")
+    void shouldSaveImageUrl() {
+        Appointment a = buildAppointment();
+        when(repo.findById(1L)).thenReturn(Optional.of(a));
+
+        service.saveImageUrl(1L, "https://supabase.co/imagen.jpg");
+
+        assertThat(a.getImageUrl()).isEqualTo("https://supabase.co/imagen.jpg");
+        verify(repo).save(a);
+    }
+
+    @Test
+    @DisplayName("Lanza excepción si la cita no existe")
+    void shouldThrowWhenNotFound() {
+        when(repo.findById(99L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.saveImageUrl(99L, "url"))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("Cita no encontrada");
+    }
+}
+
+    // ── savePatientImageUrl() ─────────────────────────────────────────────────
+
+    @Nested
+    @DisplayName("savePatientImageUrl()")
+    class SavePatientImageUrl {
+
+        @Test
+        @DisplayName("Guarda la URL de imagen del paciente correctamente")
+        void shouldSavePatientImageUrl() {
+            Appointment a = buildAppointment();
+            when(repo.findById(1L)).thenReturn(Optional.of(a));
+
+            service.savePatientImageUrl(1L, "https://supabase.co/paciente.jpg");
+
+            assertThat(a.getPatientImageUrl()).isEqualTo("https://supabase.co/paciente.jpg");
+            verify(repo).save(a);
+        }
+
+        @Test
+        @DisplayName("Lanza excepción si la cita no existe")
+        void shouldThrowWhenNotFound() {
+            when(repo.findById(99L)).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> service.savePatientImageUrl(99L, "url"))
                     .isInstanceOf(ResponseStatusException.class)
                     .hasMessageContaining("Cita no encontrada");
         }
