@@ -3,11 +3,14 @@ package com.rednorte.appointment_service.service;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.http.HttpStatus;
 
 import com.rednorte.appointment_service.client.UserClient;
+import com.rednorte.appointment_service.config.RabbitMQConfig;
+import com.rednorte.appointment_service.dto.AppointmentEvent;
 import com.rednorte.appointment_service.dto.MedicalRecordDTO;
 import com.rednorte.appointment_service.model.Appointment;
 import com.rednorte.appointment_service.repository.AppointmentRepository;
@@ -19,10 +22,12 @@ public class AppointmentService {
 
     private final AppointmentRepository repo;
     private final UserClient userClient;
+    private final RabbitTemplate rabbitTemplate;
 
-    public AppointmentService(AppointmentRepository repo, UserClient userClient) {
+    public AppointmentService(AppointmentRepository repo, UserClient userClient, RabbitTemplate rabbitTemplate) {
         this.repo = repo;
         this.userClient = userClient;
+        this.rabbitTemplate = rabbitTemplate;
     }
 
     public Appointment create(Appointment a) {
@@ -43,7 +48,16 @@ public class AppointmentService {
         }
 
         a.setStatus(AppointmentStatus.PENDIENTE);
-        return repo.save(a);
+        Appointment saved = repo.save(a);
+
+        // Publicar evento cita creada
+        rabbitTemplate.convertAndSend(
+                RabbitMQConfig.EXCHANGE,
+                "appointment.created",
+                new AppointmentEvent("CITA_CREADA", saved.getId(), saved.getPatientRut(), saved.getDoctorRut())
+        );
+
+        return saved;
     }
 
     public List<Appointment> getAll() {
@@ -69,12 +83,18 @@ public class AppointmentService {
         a.setStatus(AppointmentStatus.CANCELADA);
         a.setCancelReason(reason);
         repo.save(a);
+
+        // Publicar evento cita cancelada
+        rabbitTemplate.convertAndSend(
+                RabbitMQConfig.EXCHANGE,
+                "appointment.cancelled",
+                new AppointmentEvent("CITA_CANCELADA", a.getId(), a.getPatientRut(), a.getDoctorRut())
+        );
     }
 
     public void updateStatus(Long id, AppointmentStatus status) {
         Appointment a = repo.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Cita no encontrada"));
-
         a.setStatus(status);
         repo.save(a);
     }
@@ -82,7 +102,6 @@ public class AppointmentService {
     public void updatePriority(Long id, AppointmentPriority priority) {
         Appointment a = repo.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Cita no encontrada"));
-
         a.setPriority(priority);
         repo.save(a);
     }
@@ -90,11 +109,31 @@ public class AppointmentService {
     public void saveMedicalRecord(Long id, MedicalRecordDTO dto) {
         Appointment a = repo.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Cita no encontrada"));
-
         a.setPrescription(dto.getPrescription());
         a.setIndications(dto.getIndications());
         a.setRestDays(dto.getRestDays());
         a.setStatus(AppointmentStatus.APROBADA);
+        repo.save(a);
+
+        // Publicar evento cita aprobada
+        rabbitTemplate.convertAndSend(
+                RabbitMQConfig.EXCHANGE,
+                "appointment.approved",
+                new AppointmentEvent("CITA_APROBADA", a.getId(), a.getPatientRut(), a.getDoctorRut())
+        );
+    }
+
+    public void saveImageUrl(Long id, String imageUrl) {
+        Appointment a = repo.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Cita no encontrada"));
+        a.setImageUrl(imageUrl);
+        repo.save(a);
+    }
+
+    public void savePatientImageUrl(Long id, String patientImageUrl) {
+        Appointment a = repo.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Cita no encontrada"));
+        a.setPatientImageUrl(patientImageUrl);
         repo.save(a);
     }
 }

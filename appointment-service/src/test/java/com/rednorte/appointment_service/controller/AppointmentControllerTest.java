@@ -58,7 +58,7 @@ class AppointmentControllerTest {
         return new AppointmentResponseDTO(
                 1L, "11111111-1", "22222222-2",
                 LocalDateTime.now().plusDays(1),
-                "PENDIENTE", null, null, null, null, null
+                "PENDIENTE", null, null, null, null, null, null, null
         );
     }
 
@@ -216,6 +216,99 @@ class AppointmentControllerTest {
                            .param("priority", "A"))
                    .andExpect(status().isOk())
                    .andExpect(content().string("Prioridad actualizada"));
+        }
+    }
+    // ── GET /appointments/doctor/{rut} ────────────────────────────────────────
+
+@Nested
+@DisplayName("GET /appointments/doctor/{rut}")
+class ListByDoctor {
+
+    @Test
+    @WithMockUser
+    @DisplayName("Retorna citas del doctor")
+    void shouldReturnByDoctor() throws Exception {
+        when(service.getByDoctorRut("22222222-2")).thenReturn(List.of(buildAppointment()));
+
+        try (MockedStatic<AppointmentMapper> m = mockStatic(AppointmentMapper.class)) {
+            m.when(() -> AppointmentMapper.toDTO(any())).thenReturn(buildResponseDTO());
+
+            mockMvc.perform(get("/appointments/doctor/22222222-2"))
+                   .andExpect(status().isOk())
+                   .andExpect(jsonPath("$.length()").value(1));
+        }
+    }
+}
+
+// ── PUT /appointments/{id}/medical-record ────────────────────────────────
+
+@Nested
+@DisplayName("PUT /appointments/{id}/medical-record")
+class SaveMedicalRecord {
+
+    @Test
+    @WithMockUser
+    @DisplayName("Guarda el registro médico y retorna 200")
+    void shouldSaveMedicalRecord() throws Exception {
+        String body = """
+                { "prescription": "Ibuprofeno", "indications": "Cada 8h", "restDays": 3 }
+                """;
+        doNothing().when(service).saveMedicalRecord(eq(1L), any());
+
+        mockMvc.perform(put("/appointments/1/medical-record")
+                       .with(csrf())
+                       .contentType(MediaType.APPLICATION_JSON)
+                       .content(body))
+               .andExpect(status().isOk())
+               .andExpect(content().string("Registro médico guardado"));
+    }
+}
+
+// ── PUT /appointments/{id}/image-url ─────────────────────────────────────
+
+@Nested
+@DisplayName("PUT /appointments/{id}/image-url")
+class SaveImageUrl {
+
+    @Test
+    @WithMockUser
+    @DisplayName("Guarda la URL de imagen del médico y retorna 200")
+    void shouldSaveImageUrl() throws Exception {
+        String body = """
+                { "imageUrl": "https://supabase.co/imagen.jpg" }
+                """;
+        doNothing().when(service).saveImageUrl(eq(1L), anyString());
+
+        mockMvc.perform(put("/appointments/1/image-url")
+                       .with(csrf())
+                       .contentType(MediaType.APPLICATION_JSON)
+                       .content(body))
+               .andExpect(status().isOk())
+               .andExpect(content().string("Imagen del médico guardada"));
+    }
+}
+
+    // ── PUT /appointments/{id}/patient-image-url ─────────────────────────────
+
+    @Nested
+    @DisplayName("PUT /appointments/{id}/patient-image-url")
+    class SavePatientImageUrl {
+
+        @Test
+        @WithMockUser
+        @DisplayName("Guarda la URL de imagen del paciente y retorna 200")
+        void shouldSavePatientImageUrl() throws Exception {
+            String body = """
+                    { "patientImageUrl": "https://supabase.co/paciente.jpg" }
+                    """;
+            doNothing().when(service).savePatientImageUrl(eq(1L), anyString());
+
+            mockMvc.perform(put("/appointments/1/patient-image-url")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isOk())
+                .andExpect(content().string("Imagen del paciente guardada"));
         }
     }
 }

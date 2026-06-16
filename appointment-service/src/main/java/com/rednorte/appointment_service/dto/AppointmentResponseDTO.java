@@ -19,4 +19,6 @@ public class AppointmentResponseDTO {
     private String prescription;
     private String indications;
     private Integer restDays;
+    private String imageUrl;
+    private String patientImageUrl;
 }
