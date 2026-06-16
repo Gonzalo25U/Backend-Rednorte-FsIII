@@ -2,13 +2,15 @@ package com.rednorte.user_service.dto;
 
 import com.rednorte.user_service.enums.UserRole;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
 @Getter
 @AllArgsConstructor
-@JsonInclude(JsonInclude.Include.NON_NULL) // no muestra campos null en el JSON
+@JsonInclude(JsonInclude.Include.NON_NULL)
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class UserResponseDTO {
 
     private Long id;
@@ -16,5 +18,5 @@ public class UserResponseDTO {
     private String name;
     private UserRole role;
     private boolean active;
-    private String generatedPassword; // solo aparece al crear, null en el resto
+    private String generatedPassword;
 }

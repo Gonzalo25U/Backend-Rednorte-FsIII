@@ -1,11 +1,13 @@
 package com.rednorte.bff_service.controller;
 
+import com.rednorte.bff_service.config.SupabaseProperties;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 
@@ -17,6 +19,7 @@ import java.util.*;
 public class PacienteBffController {
 
     private final WebClient webClient;
+    private final SupabaseProperties supabaseProperties;
 
     @Value("${gateway.url}")
     private String gatewayUrl;
@@ -178,6 +181,78 @@ public class PacienteBffController {
                     .toBodilessEntity()
                     .block();
             return ResponseEntity.ok(Map.of("message", "Cita cancelada"));
+        } catch (WebClientResponseException e) {
+            return ResponseEntity.status(e.getStatusCode()).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PostMapping(value = "/appointments/{id}/upload-image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<?> uploadPatientImage(
+            @RequestHeader("Authorization") String authHeader,
+            @PathVariable Long id,
+            @RequestParam("file") MultipartFile file) {
+        try {
+            String originalName = file.getOriginalFilename().replaceAll("[^a-zA-Z0-9._-]", "_");
+            String fileName = id + "/paciente_" + UUID.randomUUID() + "_" + originalName;
+            String uploadUrl = supabaseProperties.getUrl() + "/storage/v1/object/appointment-images/" + fileName;
+
+            byte[] bytes = file.getBytes();
+            webClient.post()
+                    .uri(uploadUrl)
+                    .header("Authorization", "Bearer " + supabaseProperties.getServiceKey())
+                    .header("x-upsert", "true")
+                    .header("Content-Type", file.getContentType())
+                    .bodyValue(bytes)
+                    .retrieve()
+                    .toBodilessEntity()
+                    .block();
+
+            String publicUrl = supabaseProperties.getUrl() + "/storage/v1/object/public/appointment-images/" + fileName;
+
+            webClient.put()
+                    .uri(gatewayUrl + "/api/appointments/" + id + "/patient-image-url")
+                    .header("Authorization", authHeader)
+                    .bodyValue(Map.of("patientImageUrl", publicUrl))
+                    .retrieve()
+                    .toBodilessEntity()
+                    .block();
+
+            return ResponseEntity.ok(Map.of("patientImageUrl", publicUrl));
+
+        } catch (WebClientResponseException e) {
+            return ResponseEntity.status(e.getStatusCode()).body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Error al subir imagen: " + e.getMessage()));
+        }
+    }
+    @GetMapping("/notifications")
+public ResponseEntity<?> getNotifications(@RequestHeader("Authorization") String authHeader) {
+    try {
+        List result = webClient.get()
+                .uri(gatewayUrl + "/api/notifications/" + getCurrentRut())
+                .header("Authorization", authHeader)
+                .retrieve()
+                .bodyToMono(List.class)
+                .block();
+        return ResponseEntity.ok(result);
+    } catch (WebClientResponseException e) {
+        return ResponseEntity.status(e.getStatusCode()).body(Map.of("error", e.getMessage()));
+    }
+}
+
+    @PutMapping("/notifications/{id}/read")
+    public ResponseEntity<?> markNotificationAsRead(
+            @RequestHeader("Authorization") String authHeader,
+            @PathVariable Long id) {
+        try {
+            webClient.put()
+                    .uri(gatewayUrl + "/api/notifications/" + id + "/read")
+                    .header("Authorization", authHeader)
+                    .retrieve()
+                    .toBodilessEntity()
+                    .block();
+            return ResponseEntity.ok(Map.of("message", "Notificación marcada como leída"));
         } catch (WebClientResponseException e) {
             return ResponseEntity.status(e.getStatusCode()).body(Map.of("error", e.getMessage()));
         }

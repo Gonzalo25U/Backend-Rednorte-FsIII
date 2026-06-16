@@ -29,14 +29,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-/*
- * @WebMvcTest levanta solo la capa web (sin BD ni contexto completo).
- * Spring Security está activo; usamos @WithMockUser para simular autenticación
- * y csrf() en las peticiones que modifican estado (POST, PUT, DELETE).
- *
- * Si tu SecurityConfig excluye ciertos paths de autenticación, puedes
- * reemplazar @WithMockUser por una config de test propia con @TestConfiguration.
- */
+
 @WebMvcTest(UserController.class)
 class UserControllerTest {
 
@@ -153,17 +146,16 @@ class UserControllerTest {
         @WithMockUser
         @DisplayName("Retorna solo doctores activos")
         void shouldReturnOnlyActiveDoctors() throws Exception {
-            User doctor      = buildUser(1L, "12345678-9", "Dr. Juan", UserRole.DOCTOR);
-            User inactiveDoc = buildUser(2L, "11111111-1", "Dr. Inactivo", UserRole.DOCTOR);
-            inactiveDoc.setActive(false);
-            User admin = buildUser(3L, "98765432-1", "Admin", UserRole.ADMIN);
+            UserResponseDTO doctorDTO = new UserResponseDTO(
+                    1L, "12345678-9", "Dr. Juan", UserRole.DOCTOR, true, null
+            );
 
-            when(service.getAllUsers()).thenReturn(List.of(doctor, inactiveDoc, admin));
+            when(service.getDoctors()).thenReturn(List.of(doctorDTO));
 
             mockMvc.perform(get("/users/doctors"))
-                   .andExpect(status().isOk())
-                   .andExpect(jsonPath("$.length()").value(1))
-                   .andExpect(jsonPath("$[0].rut").value("12345678-9"));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].rut").value("12345678-9"));
         }
     }
 
