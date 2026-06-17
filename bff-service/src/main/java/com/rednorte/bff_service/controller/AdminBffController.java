@@ -81,6 +81,7 @@ public class AdminBffController {
         try {
             webClient.put()
                     .uri(gatewayUrl + "/api/users/password")
+                    .contentType(MediaType.APPLICATION_JSON)
                     .header("Authorization", authHeader)
                     .bodyValue(body)
                     .retrieve()
@@ -88,7 +89,7 @@ public class AdminBffController {
                     .block();
             return ResponseEntity.ok(Map.of("message", "Contraseña actualizada"));
         } catch (WebClientResponseException e) {
-            return ResponseEntity.status(e.getStatusCode()).body(Map.of("error", e.getMessage()));
+            return ResponseEntity.status(e.getStatusCode()).body(Map.of("error", e.getResponseBodyAsString()));
         }
     }
 }
