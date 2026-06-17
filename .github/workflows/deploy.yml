@@ -120,6 +120,26 @@ jobs:
             sed "s|\${IMAGE_TAG}|$IMAGE_TAG|g" $f | kubectl apply -f -
           done
 
+      - name: Ver logs de pods con errores
+        if: always()
+        run: |
+          echo "=== PODS STATUS ==="
+          kubectl get pods -n rednorte
+          echo "=== LOGS eureka-server ==="
+          kubectl logs -n rednorte -l app=eureka-server --tail=50 || true
+          echo "=== LOGS user-service ==="
+          kubectl logs -n rednorte -l app=user-service --tail=50 || true
+          echo "=== LOGS auth-service ==="
+          kubectl logs -n rednorte -l app=auth-service --tail=50 || true
+          echo "=== LOGS appointment-service ==="
+          kubectl logs -n rednorte -l app=appointment-service --tail=50 || true
+          echo "=== LOGS gateway-service ==="
+          kubectl logs -n rednorte -l app=gateway-service --tail=50 || true
+          echo "=== LOGS bff-service ==="
+          kubectl logs -n rednorte -l app=bff-service --tail=50 || true
+          echo "=== LOGS notification-service ==="
+          kubectl logs -n rednorte -l app=notification-service --tail=50 || true
+
       - name: Verificar despliegue
         run: |
           kubectl rollout status deployment/eureka-server -n rednorte --timeout=120s
