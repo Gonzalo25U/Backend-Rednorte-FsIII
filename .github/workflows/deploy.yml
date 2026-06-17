@@ -1,0 +1,131 @@
+name: CI/CD Backend RedNorte
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  AWS_REGION: us-east-1
+  EKS_CLUSTER: ClusterRedNorte
+  ECR_REGISTRY: 318533236125.dkr.ecr.us-east-1.amazonaws.com
+
+jobs:
+  build-and-deploy:
+    name: Build, Push y Deploy
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Configurar Java 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Configurar credenciales AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login a ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set IMAGE_TAG
+        run: echo "IMAGE_TAG=${{ github.sha }}" >> $GITHUB_ENV
+
+      - name: Build y Push eureka-server
+        run: |
+          cd eureka-server
+          mvn clean package -DskipTests
+          docker build -t $ECR_REGISTRY/rednorte/eureka-server:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/rednorte/eureka-server:$IMAGE_TAG
+
+      - name: Build y Push user-service
+        run: |
+          cd user-service
+          mvn clean package -DskipTests
+          docker build -t $ECR_REGISTRY/rednorte/user-service:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/rednorte/user-service:$IMAGE_TAG
+
+      - name: Build y Push auth-service
+        run: |
+          cd auth-service
+          mvn clean package -DskipTests
+          docker build -t $ECR_REGISTRY/rednorte/auth-service:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/rednorte/auth-service:$IMAGE_TAG
+
+      - name: Build y Push appointment-service
+        run: |
+          cd appointment-service
+          mvn clean package -DskipTests
+          docker build -t $ECR_REGISTRY/rednorte/appointment-service:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/rednorte/appointment-service:$IMAGE_TAG
+
+      - name: Build y Push gateway-service
+        run: |
+          cd gateway-service
+          mvn clean package -DskipTests
+          docker build -t $ECR_REGISTRY/rednorte/gateway-service:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/rednorte/gateway-service:$IMAGE_TAG
+
+      - name: Build y Push bff-service
+        run: |
+          cd bff-service
+          mvn clean package -DskipTests
+          docker build -t $ECR_REGISTRY/rednorte/bff-service:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/rednorte/bff-service:$IMAGE_TAG
+
+      - name: Build y Push notification-service
+        run: |
+          cd notification-service
+          mvn clean package -DskipTests
+          docker build -t $ECR_REGISTRY/rednorte/notification-service:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/rednorte/notification-service:$IMAGE_TAG
+
+      - name: Configurar kubectl para EKS
+        run: |
+          aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.EKS_CLUSTER }}
+
+      - name: Reemplazar secrets en secrets.yml
+        run: |
+          sed -i "s|\${DB_USERNAME}|${{ secrets.DB_USERNAME }}|g" k8s/secrets.yml
+          sed -i "s|\${DB_PASSWORD}|${{ secrets.DB_PASSWORD }}|g" k8s/secrets.yml
+          sed -i "s|\${JWT_SECRET}|${{ secrets.JWT_SECRET }}|g" k8s/secrets.yml
+          sed -i "s|\${SUPABASE_ANON_KEY}|${{ secrets.SUPABASE_ANON_KEY }}|g" k8s/secrets.yml
+          sed -i "s|\${SUPABASE_SERVICE_KEY}|${{ secrets.SUPABASE_SERVICE_KEY }}|g" k8s/secrets.yml
+
+      - name: Aplicar namespace y configuración
+        run: |
+          kubectl apply -f k8s/namespace.yml
+          kubectl apply -f k8s/configmap.yml
+          kubectl apply -f k8s/secrets.yml
+
+      - name: Desplegar infraestructura (Redis y RabbitMQ)
+        run: |
+          kubectl apply -f k8s/redis.yml
+          kubectl apply -f k8s/rabbitmq.yml
+
+      - name: Reemplazar IMAGE_TAG en manifiestos y desplegar
+        run: |
+          for f in k8s/eureka-server.yml k8s/user-service.yml k8s/auth-service.yml \
+                   k8s/appointment-service.yml k8s/gateway-service.yml \
+                   k8s/bff-service.yml k8s/notification-service.yml; do
+            sed "s|\${IMAGE_TAG}|$IMAGE_TAG|g" $f | kubectl apply -f -
+          done
+
+      - name: Verificar despliegue
+        run: |
+          kubectl rollout status deployment/eureka-server -n rednorte --timeout=120s
+          kubectl rollout status deployment/user-service -n rednorte --timeout=120s
+          kubectl rollout status deployment/auth-service -n rednorte --timeout=120s
+          kubectl rollout status deployment/appointment-service -n rednorte --timeout=120s
+          kubectl rollout status deployment/gateway-service -n rednorte --timeout=120s
+          kubectl rollout status deployment/bff-service -n rednorte --timeout=120s
+          kubectl rollout status deployment/notification-service -n rednorte --timeout=120s

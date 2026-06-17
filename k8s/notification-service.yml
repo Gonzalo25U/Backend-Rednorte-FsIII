@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification-service
+  namespace: rednorte
+  labels:
+    app: notification-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: notification-service
+  template:
+    metadata:
+      labels:
+        app: notification-service
+    spec:
+      containers:
+      - name: notification-service
+        image: 318533236125.dkr.ecr.us-east-1.amazonaws.com/rednorte/notification-service:${IMAGE_TAG}
+        ports:
+        - containerPort: 8086
+        envFrom:
+        - configMapRef:
+            name: rednorte-config
+        - secretRef:
+            name: rednorte-secrets
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: notification-service
+  namespace: rednorte
+spec:
+  selector:
+    app: notification-service
+  ports:
+  - port: 8086
+    targetPort: 8086

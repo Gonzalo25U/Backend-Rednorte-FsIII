@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bff-service
+  namespace: rednorte
+  labels:
+    app: bff-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: bff-service
+  template:
+    metadata:
+      labels:
+        app: bff-service
+    spec:
+      containers:
+      - name: bff-service
+        image: 318533236125.dkr.ecr.us-east-1.amazonaws.com/rednorte/bff-service:${IMAGE_TAG}
+        ports:
+        - containerPort: 8085
+        envFrom:
+        - configMapRef:
+            name: rednorte-config
+        - secretRef:
+            name: rednorte-secrets
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bff-service
+  namespace: rednorte
+spec:
+  type: LoadBalancer
+  selector:
+    app: bff-service
+  ports:
+  - port: 80
+    targetPort: 8085
