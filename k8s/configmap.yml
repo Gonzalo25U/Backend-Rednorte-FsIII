@@ -4,9 +4,9 @@ metadata:
   name: rednorte-config
   namespace: rednorte
 data:
-  DB_HOST: "db.pfprycndvkdxuzvgjqol.supabase.co"
+  DB_HOST: "postgres-service"
   DB_PORT: "5432"
-  DB_NAME: "postgres"
+  DB_NAME: "rednorte"
   RABBITMQ_HOST: "rabbitmq-service"
   RABBITMQ_PORT: "5672"
   RABBITMQ_USER: "guest"
