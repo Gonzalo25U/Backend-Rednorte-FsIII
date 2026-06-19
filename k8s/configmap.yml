@@ -15,3 +15,4 @@ data:
   EUREKA_URL: "http://eureka-server-service:8761/eureka/"
   GATEWAY_URL: "http://gateway-service:8082"
   SUPABASE_URL: "https://pfprycndvkdxuzvgjqol.supabase.co"
+  
