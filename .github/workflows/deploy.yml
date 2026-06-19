@@ -109,7 +109,6 @@ jobs:
 
       - name: Desplegar infraestructura (Redis, RabbitMQ y PostgreSQL)
         run: |
-          kubectl apply -f k8s/postgres.yml
           kubectl apply -f k8s/redis.yml
           kubectl apply -f k8s/rabbitmq.yml
 
