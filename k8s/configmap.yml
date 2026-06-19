@@ -4,7 +4,7 @@ metadata:
   name: rednorte-config
   namespace: rednorte
 data:
-  DB_HOST: "db.pfprycndvkdxuzvgjqol.supabase.co"
+  DB_HOST: "aws-1-sa-east-1.pooler.supabase.com"
   DB_PORT: "5432"
   DB_NAME: "postgres"
   RABBITMQ_HOST: "rabbitmq-service"
