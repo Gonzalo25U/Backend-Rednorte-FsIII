@@ -142,10 +142,10 @@ jobs:
 
       - name: Verificar despliegue
         run: |
-          kubectl rollout status deployment/eureka-server -n rednorte --timeout=120s
-          kubectl rollout status deployment/user-service -n rednorte --timeout=120s
-          kubectl rollout status deployment/auth-service -n rednorte --timeout=120s
-          kubectl rollout status deployment/appointment-service -n rednorte --timeout=120s
-          kubectl rollout status deployment/gateway-service -n rednorte --timeout=120s
-          kubectl rollout status deployment/bff-service -n rednorte --timeout=120s
-          kubectl rollout status deployment/notification-service -n rednorte --timeout=120s
+          kubectl rollout status deployment/eureka-server -n rednorte --timeout=180s
+          kubectl rollout status deployment/user-service -n rednorte --timeout=180s
+          kubectl rollout status deployment/auth-service -n rednorte --timeout=180s
+          kubectl rollout status deployment/appointment-service -n rednorte --timeout=180s
+          kubectl rollout status deployment/gateway-service -n rednorte --timeout=180s
+          kubectl rollout status deployment/bff-service -n rednorte --timeout=180s
+          kubectl rollout status deployment/notification-service -n rednorte --timeout=180s
