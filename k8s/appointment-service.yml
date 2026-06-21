@@ -6,7 +6,13 @@ metadata:
   labels:
     app: appointment-service
 spec:
-  replicas: 2
+  replicas: 1
+  revisionHistoryLimit: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
   selector:
     matchLabels:
       app: appointment-service
@@ -37,3 +43,4 @@ spec:
   ports:
   - port: 8083
     targetPort: 8083
+  type: ClusterIP

@@ -7,6 +7,12 @@ metadata:
     app: notification-service
 spec:
   replicas: 1
+  revisionHistoryLimit: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
   selector:
     matchLabels:
       app: notification-service
@@ -37,3 +43,4 @@ spec:
   ports:
   - port: 8086
     targetPort: 8086
+  type: ClusterIP

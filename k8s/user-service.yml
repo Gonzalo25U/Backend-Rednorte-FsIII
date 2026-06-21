@@ -6,7 +6,13 @@ metadata:
   labels:
     app: user-service
 spec:
-  replicas: 2
+  replicas: 1
+  revisionHistoryLimit: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
   selector:
     matchLabels:
       app: user-service
@@ -37,3 +43,4 @@ spec:
   ports:
   - port: 8081
     targetPort: 8081
+  type: ClusterIP

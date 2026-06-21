@@ -3,8 +3,16 @@ kind: Deployment
 metadata:
   name: redis
   namespace: rednorte
+  labels:
+    app: redis
 spec:
   replicas: 1
+  revisionHistoryLimit: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
   selector:
     matchLabels:
       app: redis
@@ -30,3 +38,4 @@ spec:
   ports:
   - port: 6379
     targetPort: 6379
+  type: ClusterIP
