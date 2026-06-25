@@ -23,7 +23,7 @@ spec:
     spec:
       containers:
       - name: eureka-server
-        image: 318533236125.dkr.ecr.us-east-1.amazonaws.com/rednorte/eureka-server:${IMAGE_TAG}
+        image: gonzalo25u/rednorte-eureka-server:${IMAGE_TAG}
         ports:
         - containerPort: 8761
 ---

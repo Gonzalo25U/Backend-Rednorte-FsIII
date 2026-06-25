@@ -8,12 +8,67 @@ on:
 env:
   AWS_REGION: us-east-1
   EKS_CLUSTER: ClusterRedNorte
-  ECR_REGISTRY: 318533236125.dkr.ecr.us-east-1.amazonaws.com
+  DOCKERHUB_REGISTRY: gonzalo25u
 
 jobs:
+  test-and-quality:
+    name: Tests y Análisis de Calidad
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configurar Java 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Ejecutar tests y cobertura — appointment-service
+        run: |
+          cd appointment-service
+          mvn clean verify
+
+      - name: Ejecutar tests y cobertura — user-service
+        run: |
+          cd user-service
+          mvn clean verify
+
+      - name: Análisis SonarCloud — appointment-service
+        uses: SonarSource/sonarcloud-github-action@master
+        with:
+          projectBaseDir: appointment-service
+          args: >
+            -Dsonar.organization=gonzalo25u
+            -Dsonar.projectKey=Gonzalo25U_Backend-Rednorte-FsIII
+            -Dsonar.java.binaries=target/classes
+            -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
+            -Dsonar.qualitygate.wait=true
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Análisis SonarCloud — user-service
+        uses: SonarSource/sonarcloud-github-action@master
+        with:
+          projectBaseDir: user-service
+          args: >
+            -Dsonar.organization=gonzalo25u
+            -Dsonar.projectKey=Gonzalo25U_Backend-Rednorte-FsIII
+            -Dsonar.java.binaries=target/classes
+            -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
+            -Dsonar.qualitygate.wait=true
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   build-and-deploy:
     name: Build, Push y Deploy
     runs-on: ubuntu-latest
+    needs: test-and-quality
 
     steps:
       - name: Checkout código
@@ -25,6 +80,12 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
 
+      - name: Login a Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
       - name: Configurar credenciales AWS
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -33,61 +94,60 @@ jobs:
           aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Login a ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
-
       - name: Set IMAGE_TAG
         run: echo "IMAGE_TAG=${{ github.sha }}" >> $GITHUB_ENV
+
+      - name: Registrar inicio de despliegue
+        run: echo "DEPLOY_START=$(date +%s)" >> $GITHUB_ENV
 
       - name: Build y Push eureka-server
         run: |
           cd eureka-server
           mvn clean package -DskipTests
-          docker build -t $ECR_REGISTRY/rednorte/eureka-server:$IMAGE_TAG .
-          docker push $ECR_REGISTRY/rednorte/eureka-server:$IMAGE_TAG
+          docker build -t $DOCKERHUB_REGISTRY/rednorte-eureka-server:$IMAGE_TAG .
+          docker push $DOCKERHUB_REGISTRY/rednorte-eureka-server:$IMAGE_TAG
 
       - name: Build y Push user-service
         run: |
           cd user-service
           mvn clean package -DskipTests
-          docker build -t $ECR_REGISTRY/rednorte/user-service:$IMAGE_TAG .
-          docker push $ECR_REGISTRY/rednorte/user-service:$IMAGE_TAG
+          docker build -t $DOCKERHUB_REGISTRY/rednorte-user-service:$IMAGE_TAG .
+          docker push $DOCKERHUB_REGISTRY/rednorte-user-service:$IMAGE_TAG
 
       - name: Build y Push auth-service
         run: |
           cd auth-service
           mvn clean package -DskipTests
-          docker build -t $ECR_REGISTRY/rednorte/auth-service:$IMAGE_TAG .
-          docker push $ECR_REGISTRY/rednorte/auth-service:$IMAGE_TAG
+          docker build -t $DOCKERHUB_REGISTRY/rednorte-auth-service:$IMAGE_TAG .
+          docker push $DOCKERHUB_REGISTRY/rednorte-auth-service:$IMAGE_TAG
 
       - name: Build y Push appointment-service
         run: |
           cd appointment-service
           mvn clean package -DskipTests
-          docker build -t $ECR_REGISTRY/rednorte/appointment-service:$IMAGE_TAG .
-          docker push $ECR_REGISTRY/rednorte/appointment-service:$IMAGE_TAG
+          docker build -t $DOCKERHUB_REGISTRY/rednorte-appointment-service:$IMAGE_TAG .
+          docker push $DOCKERHUB_REGISTRY/rednorte-appointment-service:$IMAGE_TAG
 
       - name: Build y Push gateway-service
         run: |
           cd gateway-service
           mvn clean package -DskipTests
-          docker build -t $ECR_REGISTRY/rednorte/gateway-service:$IMAGE_TAG .
-          docker push $ECR_REGISTRY/rednorte/gateway-service:$IMAGE_TAG
+          docker build -t $DOCKERHUB_REGISTRY/rednorte-gateway-service:$IMAGE_TAG .
+          docker push $DOCKERHUB_REGISTRY/rednorte-gateway-service:$IMAGE_TAG
 
       - name: Build y Push bff-service
         run: |
           cd bff-service
           mvn clean package -DskipTests
-          docker build -t $ECR_REGISTRY/rednorte/bff-service:$IMAGE_TAG .
-          docker push $ECR_REGISTRY/rednorte/bff-service:$IMAGE_TAG
+          docker build -t $DOCKERHUB_REGISTRY/rednorte-bff-service:$IMAGE_TAG .
+          docker push $DOCKERHUB_REGISTRY/rednorte-bff-service:$IMAGE_TAG
 
       - name: Build y Push notification-service
         run: |
           cd notification-service
           mvn clean package -DskipTests
-          docker build -t $ECR_REGISTRY/rednorte/notification-service:$IMAGE_TAG .
-          docker push $ECR_REGISTRY/rednorte/notification-service:$IMAGE_TAG
+          docker build -t $DOCKERHUB_REGISTRY/rednorte-notification-service:$IMAGE_TAG .
+          docker push $DOCKERHUB_REGISTRY/rednorte-notification-service:$IMAGE_TAG
 
       - name: Configurar kubectl para EKS
         run: |
@@ -107,38 +167,18 @@ jobs:
           kubectl apply -f k8s/configmap.yml
           kubectl apply -f k8s/secrets.yml
 
-      - name: Desplegar infraestructura (Redis, RabbitMQ y PostgreSQL)
+      - name: Desplegar infraestructura
         run: |
           kubectl apply -f k8s/redis.yml
           kubectl apply -f k8s/rabbitmq.yml
 
-      - name: Reemplazar IMAGE_TAG en manifiestos y desplegar
+      - name: Reemplazar IMAGE_TAG y desplegar
         run: |
           for f in k8s/eureka-server.yml k8s/user-service.yml k8s/auth-service.yml \
                    k8s/appointment-service.yml k8s/gateway-service.yml \
                    k8s/bff-service.yml k8s/notification-service.yml; do
             sed "s|\${IMAGE_TAG}|$IMAGE_TAG|g" $f | kubectl apply -f -
           done
-
-      - name: Ver logs de pods con errores
-        if: always()
-        run: |
-          echo "=== PODS STATUS ==="
-          kubectl get pods -n rednorte
-          echo "=== LOGS eureka-server ==="
-          kubectl logs -n rednorte -l app=eureka-server --tail=50 || true
-          echo "=== LOGS user-service ==="
-          kubectl logs -n rednorte -l app=user-service --tail=50 || true
-          echo "=== LOGS auth-service ==="
-          kubectl logs -n rednorte -l app=auth-service --tail=50 || true
-          echo "=== LOGS appointment-service ==="
-          kubectl logs -n rednorte -l app=appointment-service --tail=50 || true
-          echo "=== LOGS gateway-service ==="
-          kubectl logs -n rednorte -l app=gateway-service --tail=50 || true
-          echo "=== LOGS bff-service ==="
-          kubectl logs -n rednorte -l app=bff-service --tail=50 || true
-          echo "=== LOGS notification-service ==="
-          kubectl logs -n rednorte -l app=notification-service --tail=50 || true
 
       - name: Verificar despliegue
         run: |
@@ -149,3 +189,35 @@ jobs:
           kubectl rollout status deployment/gateway-service -n rednorte --timeout=180s
           kubectl rollout status deployment/bff-service -n rednorte --timeout=180s
           kubectl rollout status deployment/notification-service -n rednorte --timeout=180s
+
+      - name: Registrar métricas en CloudWatch
+        run: |
+          DEPLOY_END=$(date +%s)
+          DEPLOY_TIME=$((DEPLOY_END - DEPLOY_START))
+          aws cloudwatch put-metric-data \
+            --namespace "RedNorte/Deployments" \
+            --metric-name "DeploymentDuration" \
+            --value $DEPLOY_TIME \
+            --unit Seconds \
+            --region ${{ env.AWS_REGION }}
+          aws cloudwatch put-metric-data \
+            --namespace "RedNorte/Deployments" \
+            --metric-name "DeploymentSuccess" \
+            --value 1 \
+            --unit Count \
+            --region ${{ env.AWS_REGION }}
+
+      - name: Ver estado final de pods
+        if: always()
+        run: |
+          kubectl get pods -n rednorte
+
+      - name: Registrar fallo en CloudWatch
+        if: failure()
+        run: |
+          aws cloudwatch put-metric-data \
+            --namespace "RedNorte/Deployments" \
+            --metric-name "DeploymentSuccess" \
+            --value 0 \
+            --unit Count \
+            --region ${{ env.AWS_REGION }}

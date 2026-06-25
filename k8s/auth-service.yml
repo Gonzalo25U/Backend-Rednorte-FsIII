@@ -23,7 +23,7 @@ spec:
     spec:
       containers:
       - name: auth-service
-        image: 318533236125.dkr.ecr.us-east-1.amazonaws.com/rednorte/auth-service:${IMAGE_TAG}
+        image: gonzalo25u/rednorte-auth-service:${IMAGE_TAG}
         ports:
         - containerPort: 8084
         envFrom:

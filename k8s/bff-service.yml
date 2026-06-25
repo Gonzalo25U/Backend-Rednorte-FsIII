@@ -23,7 +23,7 @@ spec:
     spec:
       containers:
       - name: bff-service
-        image: 318533236125.dkr.ecr.us-east-1.amazonaws.com/rednorte/bff-service:${IMAGE_TAG}
+        image: gonzalo25u/rednorte-bff-service:${IMAGE_TAG}
         ports:
         - containerPort: 8085
         envFrom:
