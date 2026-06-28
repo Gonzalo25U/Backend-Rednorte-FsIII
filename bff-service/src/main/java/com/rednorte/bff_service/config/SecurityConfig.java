@@ -57,7 +57,7 @@ public class SecurityConfig {
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowedOrigins(List.of(
             "http://localhost:4321",
-            "http://a8d60545da1434086b266a4ecd8a4470-2141932470.us-east-1.elb.amazonaws.com"
+            "http://a918aa7d71946440f9cad2d989c4d0d4-864776264.us-east-1.elb.amazonaws.com"
         ));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
