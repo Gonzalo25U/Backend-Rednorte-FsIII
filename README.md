@@ -1,868 +1,452 @@
-# 🏥 RedNorte FSIII - Backend
+# 🏥 RedNorte — Backend
 
-**Plataforma de Gestión de Listas de Espera Hospitalarias - Microservicios Backend**
-
-Backend de la solución tecnológica para RedNorte basado en arquitectura de microservicios con Spring Boot, que gestiona autenticación, usuarios y citas médicas con alta disponibilidad y escalabilidad.
+Sistema de gestión médica basado en microservicios Spring Boot, desplegado en AWS EKS con pipeline CI/CD automatizado mediante GitHub Actions.
 
 ---
 
-## 📋 Tabla de Contenidos
+## 📋 Tabla de contenidos
 
-- [Descripción General](#descripción-general)
-- [Arquitectura](#arquitectura)
-- [Tecnologías](#tecnologías)
-- [Requisitos Previos](#requisitos-previos)
-- [Instalación y Configuración](#instalación-y-configuración)
-- [Ejecución](#ejecución)
-- [Servicios y Puertos](#servicios-y-puertos)
-- [Variables de Entorno](#variables-de-entorno)
-- [Endpoints](#endpoints)
-- [Testing](#testing)
-- [Docker](#docker)
-- [Troubleshooting](#troubleshooting)
-- [Contribuir](#contribuir)
-- [Licencia](#licencia)
+- [Arquitectura del Cluster AWS EKS](#arquitectura-del-cluster-aws-eks)
+- [VPC y Configuración de Red](#vpc-y-configuración-de-red)
+- [Nodos y Capacidad de Cómputo](#nodos-y-capacidad-de-cómputo)
+- [Subredes y Tags](#subredes-y-tags)
+- [Docker Hub](#docker-hub)
+- [Manifiestos Kubernetes (k8s)](#manifiestos-kubernetes-k8s)
+- [Pipeline CI/CD — GitHub Actions](#pipeline-cicd--github-actions)
+- [Secrets y Credenciales](#secrets-y-credenciales)
+- [SonarCloud — Análisis de Calidad](#sonarcloud--análisis-de-calidad)
+- [Evidencias del Despliegue](#evidencias-del-despliegue)
 
 ---
 
-## 📱 Descripción General
+## Arquitectura del Cluster AWS EKS
 
-RedNorte FSIII Backend es una **solución de microservicios escalable** construida con **Spring Boot 3.2.5** y **Java 21 LTS**, que implementa patrones empresariales modernos como API Gateway, Service Discovery y Circuit Breaker.
+El backend de RedNorte está desplegado en **Amazon Elastic Kubernetes Service (EKS)** bajo el cluster `ClusterRedNorte` en la región `us-east-1`. La aplicación está compuesta por 7 microservicios Spring Boot orquestados dentro del namespace `rednorte`.
 
-**Características principales:**
-- ✅ 6 microservicios especializados (Eureka, Auth, User, Appointment, Gateway, BFF)
-- ✅ Autenticación con JWT y validación de roles
-- ✅ Persistencia con PostgreSQL y JPA
-- ✅ Service Discovery automático con Eureka
-- ✅ Comunicación inter-servicios con WebClient
-- ✅ Validación de datos robusta (RUT, contraseñas)
-- ✅ Containerización con Docker
-- ✅ Testing unitario con JUnit 5 y Mockito
+| Parámetro | Valor |
+|---|---|
+| Nombre del cluster | `ClusterRedNorte` |
+| Región | `us-east-1` |
+| Versión de Kubernetes | `v1.35` |
+| Namespace | `rednorte` |
+| Node Group | `GrupoNodosRedNorte` |
+| IAM Role del cluster | `LabRole` |
 
----
+### Microservicios desplegados
 
-## 🏗️ Arquitectura
+| Servicio | Puerto | Tipo de Service |
+|---|---|---|
+| `eureka-server` | 8761 | ClusterIP |
+| `auth-service` | 8084 | ClusterIP |
+| `user-service` | 8081 | ClusterIP |
+| `appointment-service` | 8083 | ClusterIP |
+| `notification-service` | 8086 | ClusterIP |
+| `gateway-service` | 8082 | LoadBalancer |
+| `bff-service` | 8085 | LoadBalancer |
+| `rabbitmq` | 5672 / 15672 | ClusterIP |
+| `redis` | 6379 | ClusterIP |
 
-### Diagrama de Microservicios
+> 📸 **[Vista del cluster en AWS Console]**
 
-```
-┌────────────────────────────────────────────────┐
-│          Frontend (http://localhost:3000)      │
-└─────────────────────┬──────────────────────────┘
-                      │
-        HTTP + JWT Token (Bearer)
-                      │
-┌─────────────────────▼──────────────────────────┐
-│   BFF Service (Port 8085)                      │
-│   Orquestación de llamadas, adaptación de datos│
-└─────────────────────┬──────────────────────────┘
-                      │
-         ┌────────────▼──────────────┐
-         │  API Gateway (Port 8082)  │
-         │  - Enrutamiento central   │
-         │  - Load balancing         │
-         │  - Throttling             │
-         └────────────┬──────────────┘
-                      │
-    ┌─────────────────┼─────────────────┬──────────────┐
-    │                 │                 │              │
-┌───▼────┐     ┌─────▼────┐      ┌────▼────┐    ┌───▼──────┐
-│ Auth   │     │ User     │      │Appoint. │    │ Eureka   │
-│Service │     │ Service  │      │ Service │    │ Server   │
-│8084    │     │ 8081     │      │ 8083    │    │ 8761     │
-│        │     │          │      │         │    │          │
-│- Login │     │- CRUD    │      │- Crear  │    │-Registry │
-│- JWT   │     │- Roles   │      │  citas  │    │-Health   │
-└────────┘     │- RUT     │      │- Cambiar│    │  check   │
-               │- Password│      │  estado │    └──────────┘
-               └──────────┘      │- Notas  │
-                                 │  médicas│
-                                 └─────────┘
-                                      │
-                                 PostgreSQL
-                                 Database
-```
+![Cluster en AWS Console](docs/cluster1.png)
+
+> 📸 **[Vista detallad del cluster en AWS Console]**
+
+![Cluster en AWS Console Detallada](docs/cluster2.png)
+
+
+> 📸 **[Pods corriendo — kubectl get pods -n rednorte]**
+![Pods corriendo](docs/pods-activos.png)
+
+
+> 📸 **[Services y LoadBalancers — kubectl get services -n rednorte]**
+![ Services y LoadBalancers](docs/Services-running.png)
 
 ---
 
-## 🛠️ Tecnologías
+## VPC y Configuración de Red
 
-| Categoría | Tecnología | Versión | Propósito |
-|-----------|-----------|---------|----------|
-| **Framework** | Spring Boot | 3.2.5 | Framework web empresarial |
-| **Cloud** | Spring Cloud | 2023.0.1 | Microservicios y discovery |
-| **Java** | JDK | 21 LTS | Runtime con 8 años soporte |
-| **Base de Datos** | PostgreSQL | 12+ | BD relacional |
-| **ORM** | Spring Data JPA | 3.2.5 | Mapeo objeto-relacional |
-| **Seguridad** | Spring Security | 3.2.5 | Autenticación/Autorización |
-| **JWT** | JJWT | 0.12.3 | Tokens seguros |
-| **Build** | Maven | 3.9.x | Gestión de dependencias |
-| **Containerización** | Docker | 24.x | Empaquetamiento |
-| **Testing** | JUnit 5 + Mockito | Latest | Tests unitarios |
+La infraestructura de red está organizada dentro de una **VPC dedicada** con separación entre subredes públicas y privadas para garantizar el aislamiento y la seguridad.
+
+```
+VPC — 10.0.0.0/16 (us-east-1)
+├── Subred pública  → Load Balancers (ALB)
+│   ├── 10.0.0.0/24 (us-east-1a)
+│   └── 10.0.1.0/24 (us-east-1b)
+└── Subred privada  → Nodos EKS + Pods
+    ├── 10.0.12.0/24 (us-east-1a)
+    └── 10.0.25.0/24 (us-east-1b)
+```
+
+- **Subredes públicas**: exponen los Application Load Balancers al internet. Security Group permite tráfico entrante en puerto 80.
+- **Subredes privadas**: alojan los nodos EC2 y todos los pods. No tienen IP pública. El tráfico de salida hacia servicios externos (Supabase) pasa por un NAT Gateway.
+
+> 📸 **[VPC en AWS Console — VPC]**
+![ VPC en AWS Console](docs/vpc-cluster1.png)
+
+> 📸 **[Subredes públicas y privadas — VPC]**
+![ Subredes públicas y privadas](docs/vpc-cluster2.png)
 
 ---
 
-## 📦 Requisitos Previos
+## Nodos y Capacidad de Cómputo
 
-Antes de comenzar, asegúrate de tener instalado:
+El cluster utiliza **instancias EC2** como nodos de trabajo organizadas en el Node Group `GrupoNodosRedNorte`.
 
-- **Java Development Kit (JDK) 21** ([Descargar](https://www.oracle.com/java/technologies/javase/jdk21-archive-downloads.html))
-- **Maven 3.9+** ([Descargar](https://maven.apache.org/download.cgi))
-- **PostgreSQL 12+** ([Descargar](https://www.postgresql.org/download/))
-- **Docker y Docker Compose** ([Descargar](https://www.docker.com/products/docker-desktop)) - *Opcional*
-- **Git** para clonar el repositorio
+| Parámetro | Valor |
+|---|---|
+| Tipo de nodo | EC2 (Amazon Linux 2) |
+| Cantidad de nodos | 3 |
+| Pods máximos por nodo | 17 |
+| CPU por nodo | 2 vCPU (1930m allocatable) |
+| Memoria por nodo | ~3.8 GB (3.2 GB allocatable) |
+| Estrategia de actualización | `RollingUpdate` (maxSurge: 0, maxUnavailable: 1) |
+| Historial de revisiones | `revisionHistoryLimit: 2` |
 
-### Verificar Instalación
+La estrategia `maxSurge: 0` evita que Kubernetes cree pods nuevos antes de eliminar los viejos, previniendo la saturación de nodos durante los despliegues.
+
+> 📸 **[Node Group en AWS Console — EKS → Node Groups]**
+![ Node Group en AWS Console](docs/nodos-cluster.png)
+---
+
+## Subredes y Tags
+
+Para que EKS pueda crear Application Load Balancers automáticamente, las subredes requieren tags específicos.
+
+### Tags obligatorios en subredes públicas
+
+| Tag | Valor | Propósito |
+|---|---|---|
+| `kubernetes.io/role/elb` | `1` | Indica que la subred puede alojar ALBs externos |
+| `kubernetes.io/cluster/ClusterRedNorte` | `shared` | Asocia la subred al cluster EKS |
+| `Name` | `VPC-cluster-subnet-public1-*` | Identificador legible |
+
+### Comando para agregar los tags
 
 ```bash
-java -version              # Debe mostrar Java 21
-mvn -version              # Debe mostrar Maven 3.9+
-psql --version            # Debe mostrar PostgreSQL 12+
-docker --version          # Debe mostrar Docker 24+
+aws ec2 create-tags \
+  --resources <subnet-id-1> <subnet-id-2> \
+  --tags Key=kubernetes.io/role/elb,Value=1 \
+         Key=kubernetes.io/cluster/ClusterRedNorte,Value=shared \
+  --region us-east-1
 ```
+
+> ⚠️ Sin estos tags, los Services de tipo `LoadBalancer` quedan en estado `<pending>` indefinidamente.
+
+> 📸 **[Tags de la subred pública]**
+![ Tags de la subred pública](docs/tag-public1.png)
+![ Tags de la subred pública](docs/tag-public2.png)
 
 ---
 
-## 💾 Instalación y Configuración
+## Docker Hub
 
-### 1. Clonar el Repositorio
+Las imágenes Docker de todos los microservicios se almacenan en **Docker Hub** bajo el usuario `gonzalo25u`, ya que el rol IAM del laboratorio no permite crear repositorios en Amazon ECR.
 
-```bash
-git clone https://github.com/rednorte/Backend-Rednorte-FsIII.git
-cd Backend-Rednorte-FsIII
-```
+### Repositorios
 
-### 2. Configurar PostgreSQL
+| Repositorio | Imagen |
+|---|---|
+| `gonzalo25u/rednorte-eureka-server` | Servidor de descubrimiento Eureka |
+| `gonzalo25u/rednorte-auth-service` | Servicio de autenticación JWT |
+| `gonzalo25u/rednorte-user-service` | Gestión de usuarios |
+| `gonzalo25u/rednorte-appointment-service` | Gestión de citas médicas |
+| `gonzalo25u/rednorte-gateway-service` | API Gateway |
+| `gonzalo25u/rednorte-bff-service` | Backend for Frontend |
+| `gonzalo25u/rednorte-notification-service` | Servicio de notificaciones |
 
-#### Opción A: PostgreSQL Local
+### Dockerfile del Backend
 
-```bash
-# 1. Iniciar PostgreSQL (asume instalación en el sistema)
-# Windows:
-net start PostgreSQL-x64-15
-
-# macOS:
-brew services start postgresql
-
-# Linux (Ubuntu/Debian):
-sudo systemctl start postgresql
-```
-
-#### Opción B: PostgreSQL en Docker (Recomendado)
-
-```bash
-# Crear contenedor PostgreSQL
-docker run --name rednorte-postgres \
-  -e POSTGRES_PASSWORD=password \
-  -e POSTGRES_USER=postgres \
-  -e POSTGRES_DB=rednorte \
-  -p 5432:5432 \
-  -d postgres:15-alpine
-
-# Verificar que está corriendo
-docker ps | grep rednorte-postgres
-```
-
-### 3. Variables de Entorno
-
-Crea un archivo `.env` en la raíz del proyecto:
-
-```env
-# ===== BASE DE DATOS =====
-DB_HOST=localhost
-DB_PORT=5432
-DB_NAME=rednorte
-DB_USERNAME=postgres
-DB_PASSWORD=password
-
-# ===== JWT =====
-JWT_SECRET=tu-secreto-super-seguro-minimo-32-caracteres-aleatorios
-
-# ===== JAVA OPTIONS =====
-JAVA_TOOL_OPTIONS=-Djava.net.preferIPv4Stack=true
-
-# ===== LOGGING (opcional) =====
-LOGGING_LEVEL_COM_REDNORTE=DEBUG
-```
-
-### 4. Crear Base de Datos (Si no usas Docker)
-
-```bash
-# Conectar a PostgreSQL
-psql -U postgres -h localhost
-
-# En la consola de psql:
-CREATE DATABASE rednorte;
-\q  # Salir
-```
-
----
-
-## 🚀 Ejecución
-
-### Opción 1: Docker Compose (Recomendado para Desarrollo)
-
-```bash
-# Iniciar todos los servicios (Eureka, Auth, User, Appointment, Gateway, BFF + PostgreSQL)
-docker-compose up -d
-
-# Esperar ~30 segundos para que todos inicien
-
-# Verificar que están corriendo
-docker-compose ps
-
-# Ver logs en tiempo real
-docker-compose logs -f
-
-# Detener servicios
-docker-compose down
-```
-
-### Opción 2: Ejecución Individual (Desarrollo Local)
-
-#### 1. Iniciar Eureka Server (Service Discovery)
-
-```bash
-cd eureka-server
-mvn spring-boot:run
-# Acceder a http://localhost:8761 para ver el dashboard
-```
-
-#### 2. Iniciar Auth Service (en otra terminal)
-
-```bash
-cd auth-service
-mvn spring-boot:run
-# Escucha en http://localhost:8084
-```
-
-#### 3. Iniciar User Service (en otra terminal)
-
-```bash
-cd user-service
-mvn spring-boot:run
-# Escucha en http://localhost:8081
-```
-
-#### 4. Iniciar Appointment Service (en otra terminal)
-
-```bash
-cd appointment-service
-mvn spring-boot:run
-# Escucha en http://localhost:8083
-```
-
-#### 5. Iniciar API Gateway (en otra terminal)
-
-```bash
-cd gateway-service
-mvn spring-boot:run
-# Escucha en http://localhost:8082
-```
-
-#### 6. Iniciar BFF Service (en otra terminal)
-
-```bash
-cd bff-service
-mvn spring-boot:run
-# Escucha en http://localhost:8085
-```
-
----
-
-## 📡 Servicios y Puertos
-
-| Servicio | Puerto | Descripción | URL de Acceso |
-|----------|--------|-------------|---------------|
-| Eureka Server | 8761 | Service Discovery | http://localhost:8761 |
-| Auth Service | 8084 | Autenticación JWT | http://localhost:8084 |
-| User Service | 8081 | Gestión de usuarios | http://localhost:8081 |
-| Appointment Service | 8083 | Gestión de citas | http://localhost:8083 |
-| API Gateway | 8082 | Enrutamiento central | http://localhost:8082 |
-| BFF Service | 8085 | Backend For Frontend | http://localhost:8085 |
-| PostgreSQL | 5432 | Base de datos | localhost:5432 |
-
----
-
-## 🔑 Variables de Entorno
-
-### Archivo `.env` (Crear en la raíz)
-
-```env
-# ===== DATABASE CONFIG =====
-DB_HOST=localhost                    # Host de PostgreSQL
-DB_PORT=5432                         # Puerto de PostgreSQL
-DB_NAME=rednorte                     # Nombre de la BD
-DB_USERNAME=postgres                 # Usuario PostgreSQL
-DB_PASSWORD=password                 # Contraseña PostgreSQL
-
-# ===== JWT CONFIG =====
-JWT_SECRET=secreto-super-seguro-minimo-32-caracteres
-# Genera uno seguro con: openssl rand -base64 32
-
-# ===== LOGGING =====
-LOGGING_LEVEL_COM_REDNORTE=DEBUG     # INFO, DEBUG, WARN, ERROR
-LOGGING_LEVEL_ORG_SPRINGFRAMEWORK=INFO
-
-# ===== JVM OPTIONS =====
-JAVA_TOOL_OPTIONS=-Djava.net.preferIPv4Stack=true
-```
-
-### Generar JWT Secret Seguro
-
-```bash
-# macOS/Linux:
-openssl rand -base64 32
-
-# Windows (PowerShell):
-$secret = -join ((48..57) + (65..90) + (97..122) | Get-Random -Count 32 | % {[char]$_}); $secret
-
-# Online: https://www.random.org/cgi-bin/randbytes?nbytes=32&format=h
-```
-
----
-
-## 📚 Endpoints
-
-### Documentación Completa
-
-Consulta `DOCUMENTACION.md` en la raíz del proyecto para una lista exhaustiva de endpoints.
-
-### Quick Reference
-
-#### Auth Service
-
-```bash
-# Login
-curl -X POST http://localhost:8085/bff/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"rut":"12345678-1","password":"password123"}'
-
-# Respuesta:
-# { "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." }
-```
-
-#### User Service (Requiere Token)
-
-```bash
-# Listar usuarios
-curl -X GET http://localhost:8082/api/users \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN"
-
-# Crear usuario
-curl -X POST http://localhost:8082/api/users \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "rut":"98765432-K",
-    "name":"Dr. Juan Pérez",
-    "role":"DOCTOR",
-    "password":"password123"
-  }'
-
-# Obtener usuario por RUT
-curl -X GET http://localhost:8082/api/users/rut/12345678-1 \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN"
-```
-
-#### Appointment Service (Requiere Token)
-
-```bash
-# Crear cita
-curl -X POST http://localhost:8082/api/appointments \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "patientRut":"12345678-1",
-    "doctorRut":"98765432-K"
-  }'
-
-# Listar citas de paciente
-curl -X GET http://localhost:8082/api/appointments/patient/12345678-1 \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN"
-
-# Cambiar prioridad de cita
-curl -X PUT http://localhost:8082/api/appointments/1/priority?priority=A \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN"
-```
-
----
-
-## 🧪 Testing
-
-### Ejecutar Tests
-
-```bash
-# Tests de un módulo específico
-cd user-service
-mvn test
-
-# Tests de todo el backend
-mvn test --projects eureka-server,auth-service,user-service,appointment-service,gateway-service,bff-service
-
-# Tests con cobertura (JaCoCo)
-mvn clean test jacoco:report
-# Ver reporte: target/site/jacoco/index.html
-```
-
-### Estructura de Tests
-
-```
-src/test/java/com/rednorte/*/
-├── controller/    # Tests de controladores
-├── service/       # Tests de servicios
-├── utils/         # Tests de utilidades
-└── integration/   # Tests de integración
-```
-
-### Ejemplo de Test Unitario
-
-```java
-@SpringBootTest
-class UserServiceTest {
-  
-  @MockBean
-  private UserRepository userRepository;
-  
-  @InjectMocks
-  private UserService userService;
-  
-  @Test
-  void shouldCreateUserWithValidRut() {
-    // Arrange
-    User user = new User();
-    user.setRut("12345678-1");
-    user.setName("Juan Pérez");
-    user.setRole(UserRole.PACIENTE);
-    
-    when(userRepository.save(any())).thenReturn(user);
-    
-    // Act
-    String[] result = userService.create(user);
-    
-    // Assert
-    assertNotNull(result);
-    verify(userRepository, times(1)).save(any());
-  }
-  
-  @Test
-  void shouldRejectInvalidRut() {
-    User user = new User();
-    user.setRut("invalid-rut");
-    
-    assertThrows(BadRequestException.class, () -> userService.create(user));
-  }
-}
-```
-
----
-
-## 🐳 Docker
-
-### Build Individual de Imagen
-
-```bash
-# Construir imagen de un servicio
-cd user-service
-docker build -t rednorte/user-service:1.0 .
-
-# Ejecutar contenedor
-docker run -d \
-  --name user-service \
-  -p 8081:8081 \
-  -e DB_HOST=postgres \
-  -e DB_PASSWORD=password \
-  -e JWT_SECRET=tu-secreto \
-  rednorte/user-service:1.0
-```
-
-### Compose Completo
-
-```bash
-# Iniciar todo
-docker-compose up -d
-
-# Ver logs
-docker-compose logs -f auth-service
-
-# Ejecutar comando en contenedor
-docker-compose exec user-service mvn test
-
-# Parar y limpiar
-docker-compose down
-docker volume prune
-```
-
-### Dockerfile Estándar
+Cada microservicio usa la misma estructura de Dockerfile. La compilación con Maven ocurre en el runner de GitHub Actions, y el Dockerfile solo empaqueta el JAR ya compilado:
 
 ```dockerfile
-FROM openjdk:21-slim
-
+FROM eclipse-temurin:21-jre
 WORKDIR /app
-
-COPY target/auth-service-0.0.1-SNAPSHOT.jar app.jar
-
-EXPOSE 8084
-
-ENTRYPOINT ["java","-jar","app.jar"]
+COPY target/*.jar app.jar
+ENTRYPOINT ["java", "-jar", "app.jar"]
 ```
 
+Esta estrategia mantiene la imagen final liviana (~200 MB) al incluir solo el JRE y el JAR, sin herramientas de compilación.
+
+> 📸 **[Repositorios en Docker Hub — hub.docker.com/u/gonzalo25u]**
+![ Repositorios en Docker Hub](docs/repositorios-dockerhub.png)
 ---
 
-## 🐛 Troubleshooting
+## Manifiestos Kubernetes (k8s)
 
-### Problema: "Connection refused" en PostgreSQL
-
-**Síntoma:** `java.sql.SQLException: Cannot connect to database`
-
-**Soluciones:**
-```bash
-# 1. Verificar que PostgreSQL está corriendo
-ps aux | grep postgres
-
-# 2. Verificar credenciales en .env
-DB_HOST=localhost
-DB_PORT=5432
-DB_USERNAME=postgres
-DB_PASSWORD=password
-
-# 3. Conectar directamente a BD
-psql -U postgres -h localhost -d rednorte
-
-# 4. Si usas Docker, verifica que el contenedor está corriendo
-docker ps | grep postgres
-```
-
----
-
-### Problema: Puerto ya está en uso
-
-**Síntoma:** `Address already in use :8081`
-
-**Soluciones:**
-```bash
-# Encontrar proceso en puerto
-lsof -i :8081  (macOS/Linux)
-netstat -ano | findstr :8081  (Windows)
-
-# Matar proceso
-kill -9 <PID>  (macOS/Linux)
-taskkill /PID <PID> /F  (Windows)
-
-# O cambiar puerto en application.yml:
-server:
-  port: 8081  # Cambia a otro puerto
-```
-
----
-
-### Problema: Servicios no se registran en Eureka
-
-**Síntoma:** Eureka dashboard muestra "No instances available"
-
-**Causas:**
-- Eureka Server no está corriendo
-- Servicios tardan en registrarse (~10-30s)
-- Configuración incorrecta de Eureka URL
-
-**Soluciones:**
-```bash
-# 1. Verificar que Eureka está corriendo
-curl http://localhost:8761/eureka/apps
-
-# 2. Esperar unos segundos
-sleep 30
-
-# 3. Verificar logs del servicio
-docker-compose logs user-service | grep Eureka
-
-# 4. Verificar application.yml
-eureka:
-  client:
-    service-url:
-      defaultZone: http://eureka-server:8761/eureka/
-```
-
----
-
-### Problema: Error de Validación de RUT
-
-**Síntoma:** "RUT inválido. Formato requerido: xxxxxxxx-x"
-
-**Causas:**
-- Formato incorrecto (debe ser: 12345678-1)
-- Dígito verificador incorrecto
-
-**Soluciones:**
-```java
-// RUT válido: 12.345.678-1
-// Formato esperado en API: 12345678-1
-
-// Generador de RUT válido (para testing):
-String generatedRut = "12345678-" + generateCheckDigit("12345678");
-```
-
----
-
-### Problema: JWT Token expirado
-
-**Síntoma:** `401 Unauthorized: Invalid or expired token`
-
-**Causas:**
-- Token con más de 24 horas de antigüedad
-- JWT_SECRET diferente entre servicios
-
-**Soluciones:**
-```bash
-# 1. Obtener nuevo token
-curl -X POST http://localhost:8085/bff/auth/login \
-  -d '{"rut":"12345678-1","password":"password123"}'
-
-# 2. Verificar que JWT_SECRET es igual en todos los servicios
-grep JWT_SECRET .env
-
-# 3. Cambiar tiempo de expiración en JwtUtil.java (en segundos)
-.setExpiration(new Date(System.currentTimeMillis() + 86400000))  // 24 horas
-```
-
----
-
-### Problema: Base de datos no se crea automáticamente
-
-**Síntoma:** `database "rednorte" does not exist`
-
-**Soluciones:**
-```bash
-# 1. Crear manualmente
-createdb -U postgres rednorte
-
-# 2. Verificar que hibernate.ddl-auto = update
-# En application.yml:
-spring:
-  jpa:
-    hibernate:
-      ddl-auto: update  # create | create-drop | update | validate
-
-# 3. Forzar creación en Eureka (primero)
-# Iniciar eureka-server primero, luego otros servicios
-```
-
----
-
-## 🤝 Contribuir
-
-### Workflow de Desarrollo
-
-1. **Crear rama de feature:**
-   ```bash
-   git checkout develop
-   git pull origin develop
-   git checkout -b feature/nueva-funcionalidad
-   ```
-
-2. **Hacer cambios y testar:**
-   ```bash
-   mvn clean test        # Tests unitarios
-   mvn spring-boot:run  # Servidor local
-   ```
-
-3. **Commits descriptivos:**
-   ```bash
-   git commit -m "feat(user-service): agregar validación de email"
-   git commit -m "test(appointment): aumentar cobertura a 75%"
-   git commit -m "docs: actualizar endpoints"
-   ```
-
-4. **Push y Pull Request:**
-   ```bash
-   git push origin feature/nueva-funcionalidad
-   # Crear PR en GitHub hacia develop
-   ```
-
-### Convención de Commits
-
-```
-<tipo>(<scope>): <mensaje>
-
-Tipos: feat, fix, docs, test, refactor, ci, style, perf
-Scope: user-service, auth-service, appointment-service, etc.
-
-Ejemplos:
-- feat(user-service): agregar endpoint para cambiar contraseña
-- fix(auth-service): resolver bug de validación JWT
-- test(appointment-service): aumentar cobertura a 80%
-```
-
-### Guía de Código
-
-- Usar PascalCase para clases: `UserService`
-- Usar camelCase para métodos y variables: `getUserByRut`
-- Usar UPPER_SNAKE_CASE para constantes: `MAX_ATTEMPTS`
-- Documentar métodos públicos con JavaDoc
-- Máximo 100 caracteres por línea
-- Indentación de 4 espacios
-
----
-
-## 📁 Estructura de Carpetas
-
-```
-Backend-Rednorte-FsIII/
-├── eureka-server/               # Service Discovery
-│   ├── src/main/java/
-│   ├── src/main/resources/
-│   │   └── application.yml
-│   ├── pom.xml
-│   └── Dockerfile
-│
-├── auth-service/                # Autenticación
-│   ├── src/main/java/com/rednorte/auth_service/
-│   │   ├── controller/
-│   │   ├── service/
-│   │   ├── security/
-│   │   ├── client/
-│   │   ├── dto/
-│   │   └── config/
-│   ├── src/test/java/
-│   ├── src/main/resources/
-│   │   └── application.yml
-│   ├── pom.xml
-│   └── Dockerfile
-│
-├── user-service/                # Gestión de usuarios
-│   ├── src/main/java/com/rednorte/user_service/
-│   │   ├── controller/
-│   │   ├── service/
-│   │   ├── model/
-│   │   ├── repository/
-│   │   ├── dto/
-│   │   ├── security/
-│   │   ├── utils/
-│   │   ├── exception/
-│   │   └── config/
-│   ├── src/test/java/
-│   ├── src/main/resources/
-│   │   └── application.yml
-│   ├── pom.xml
-│   └── Dockerfile
-│
-├── appointment-service/         # Gestión de citas
-│   ├── src/main/java/com/rednorte/appointment_service/
-│   │   ├── controller/
-│   │   ├── service/
-│   │   ├── model/
-│   │   ├── repository/
-│   │   ├── dto/
-│   │   ├── enums/
-│   │   ├── security/
-│   │   ├── mapper/
-│   │   ├── config/
-│   │   └── client/
-│   ├── src/test/java/
-│   ├── src/main/resources/
-│   │   └── application.yml
-│   ├── pom.xml
-│   └── Dockerfile
-│
-├── gateway-service/             # API Gateway
-│   ├── src/main/java/com/rednorte/gateway_service/
-│   │   ├── config/
-│   │   └── GatewayServiceApplication.java
-│   ├── src/main/resources/
-│   │   └── application.yml
-│   ├── pom.xml
-│   └── Dockerfile
-│
-├── bff-service/                 # Backend For Frontend
-│   ├── src/main/java/com/rednorte/bff_service/
-│   │   ├── controller/
-│   │   ├── security/
-│   │   └── config/
-│   ├── src/main/resources/
-│   │   └── application.yml
-│   ├── pom.xml
-│   └── Dockerfile
-│
-├── docker-compose.yml           # Orquestación Docker
-├── pom.xml                      # Parent POM
-├── .env                         # Variables de entorno
-├── DOCUMENTACION.md             # Documentación completa
-└── README.md                    # Este archivo
-```
-
----
-
-## 📊 Monitoreo y Logs
-
-### Ver Logs en Tiempo Real
-
-#### Docker Compose:
-```bash
-# Todos los servicios
-docker-compose logs -f
-
-# Un servicio específico
-docker-compose logs -f user-service
-
-# Últimas 100 líneas
-docker-compose logs --tail=100
-```
-
-#### Localmente:
-```bash
-# Está en la salida de la terminal donde corriste mvn spring-boot:run
-```
-
-### Nivel de Logging
-
-Configura en `application.yml`:
+Todos los manifiestos están versionados en el repositorio bajo la carpeta `k8s/`. A continuación se muestra el manifiesto del `bff-service` como ejemplo representativo:
 
 ```yaml
-logging:
-  level:
-    com.rednorte: DEBUG
-    org.springframework.security: DEBUG
-    org.springframework.data: DEBUG
-    org.hibernate: INFO
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bff-service
+  namespace: rednorte
+  labels:
+    app: bff-service
+spec:
+  replicas: 1
+  revisionHistoryLimit: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: bff-service
+  template:
+    metadata:
+      labels:
+        app: bff-service
+    spec:
+      containers:
+      - name: bff-service
+        image: gonzalo25u/rednorte-bff-service:${IMAGE_TAG}
+        ports:
+        - containerPort: 8085
+        envFrom:
+        - configMapRef:
+            name: rednorte-config   # variables no sensibles
+        - secretRef:
+            name: rednorte-secrets  # credenciales cifradas
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bff-service
+  namespace: rednorte
+spec:
+  type: LoadBalancer
+  selector:
+    app: bff-service
+  ports:
+  - port: 80
+    targetPort: 8085
 ```
 
+### ConfigMap — variables no sensibles
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rednorte-config
+  namespace: rednorte
+data:
+  DB_HOST: "aws-1-sa-east-1.pooler.supabase.com"
+  DB_PORT: "5432"
+  DB_NAME: "postgres"
+  RABBITMQ_HOST: "rabbitmq-service"
+  RABBITMQ_PORT: "5672"
+  EUREKA_URL: "http://eureka-server-service:8761/eureka/"
+  GATEWAY_URL: "http://gateway-service:8082"
+  SUPABASE_URL: "https://pfprycndvkdxuzvgjqol.supabase.co"
+```
+
+📸 **[Carpetas k8s]**
+**[Frontend]**
+![ Carpeta k8s front](docs/k8s-front.png)
 ---
 
-## 📄 Licencia
+**[Backend]**
+![ Carpeta k8s back](docs/k8s.png)
+---
 
-Este proyecto es propiedad de RedNorte - Servicio Público de Salud. Consulta LICENSE.md para detalles.
+
+📸 **[Muestra con los manifiestos en el repositorio]**
+
+**[frontend.yml]**
+![ frontend.yml](docs/manifiesto-front.png)
+---
+
+**[appointment-service.yml]**
+![ Ejemplo manifiesto back](docs/manifiesto-ejemplo.png)
+---
+
+
+## Pipeline CI/CD — GitHub Actions
+
+El pipeline se define en `.github/workflows/deploy.yml` y se activa automáticamente con cada `push` a la rama `master`.
+
+### Flujo del pipeline
+
+```
+git push origin master
+        ↓
+1. Checkout código
+2. Setup Java 21
+3. Tests + Jacoco (appointment-service, user-service)
+4. Análisis SonarCloud + Quality Gate
+        ↓ (falla si Quality Gate no pasa)
+5. Configurar credenciales AWS
+6. Login a Docker Hub
+7. mvn package + docker build + docker push (×7 servicios)
+8. kubectl apply — namespace, configmap, secrets
+9. kubectl apply — redis, rabbitmq
+10. kubectl apply — microservicios con IMAGE_TAG
+11. kubectl rollout status (verificación)
+12. Métricas a CloudWatch (duración, éxito/fallo)
+```
+
+### Puntos clave
+
+- El `IMAGE_TAG` usa el SHA del commit de Git, garantizando trazabilidad exacta entre código e imagen desplegada.
+- El paso de SonarCloud usa `sonar.qualitygate.wait=true` — si el Quality Gate falla, el pipeline se detiene y no despliega.
+- Los secrets en `secrets.yml` se reemplazan con `sed` antes de aplicar al cluster, nunca se guardan en texto plano en el repositorio.
+- Las métricas de duración y éxito/fallo se envían a CloudWatch en el namespace `RedNorte/Deployments`.
+
+📸 **[Pipeline exitoso en GitHub Actions — pestaña Actions]**
+
+**[Frontend]**
+
+![ Pipeline exitoso en GitHub Actions](docs/Action-front.png)
+![ Pipeline exitoso en GitHub Actions](docs/Action-front2.png)
+
+**[Backend]**
+![ Pipeline exitoso en GitHub Actions](docs/Action-back.png)
+![ Pipeline exitoso en GitHub Actions](docs/Action-back2.png)
+
 
 ---
 
-## 📞 Soporte
+## Secrets y Credenciales
 
-- **Documentación completa:** Ver `DOCUMENTACION.md`
-- **Issues:** [GitHub Issues](https://github.com/rednorte/Backend-Rednorte-FsIII/issues)
-- **Email:** dev-team@rednorte.cl
-- **Slack:** #proyecto-fsiii
+### GitHub Secrets
+
+Ninguna credencial aparece en el código fuente. Todas están almacenadas como GitHub Secrets:
+
+| Secret | Propósito |
+|---|---|
+| `AWS_ACCESS_KEY_ID` | Credencial IAM para autenticarse con AWS |
+| `AWS_SECRET_ACCESS_KEY` | Llave secreta del IAM User |
+| `AWS_SESSION_TOKEN` | Token de sesión temporal (laboratorio) |
+| `DOCKERHUB_USERNAME` | Usuario de Docker Hub (`gonzalo25u`) |
+| `DOCKERHUB_TOKEN` | Access Token de Docker Hub |
+| `DB_USERNAME` | Usuario del pooler de Supabase |
+| `DB_PASSWORD` | Contraseña de PostgreSQL en Supabase |
+| `JWT_SECRET` | Clave para firmar tokens JWT |
+| `SUPABASE_ANON_KEY` | Clave pública de Supabase |
+| `SUPABASE_SERVICE_KEY` | Clave de servicio de Supabase |
+
+### Kubernetes Secrets
+
+El archivo `k8s/secrets.yml` en el repositorio contiene solo placeholders:
+
+```yaml
+stringData:
+  DB_USERNAME: "${DB_USERNAME}"
+  DB_PASSWORD: "${DB_PASSWORD}"
+  JWT_SECRET: "${JWT_SECRET}"
+```
+
+El pipeline los reemplaza con `sed` antes de aplicar al cluster:
+
+```bash
+sed -i "s|\${DB_USERNAME}|${{ secrets.DB_USERNAME }}|g" k8s/secrets.yml
+kubectl apply -f k8s/secrets.yml
+```
+
+Los pods leen las credenciales a través de `envFrom.secretRef`, que monta el Secret como variables de entorno en tiempo de ejecución.
+
+## [Panel de GitHub Secrets (nombres visibles, valores ocultos)]
+
+**[Frontend]**
+![ Panel de GitHub Secrets](docs/Secrets-front.png)
+**[Backend]**
+![ Panel de GitHub Secrets](docs/Secrets-back.png)
+
+> 📸 **[kubectl get secret rednorte-secrets -n rednorte]**
+![ Secret rednorte-secrets](docs/Secrets-yml.png)
 
 ---
 
-## 📝 Notas de Versión
+## SonarCloud — Análisis de Calidad
 
-### v1.0.0 (11 de Mayo 2026)
+El análisis de calidad se integra en el pipeline como **gate obligatorio** antes del despliegue.
 
-- ✨ 6 microservicios funcionales
-- ✨ Autenticación JWT
-- ✨ Gestión de citas con prioridades A-F
-- ✨ Validación de RUT con módulo 11
-- ✨ Service Discovery con Eureka
-- ✨ Tests unitarios (60% cobertura)
-- ✨ Docker y Docker Compose
+| Parámetro | Valor |
+|---|---|
+| Organización | `gonzalo25u` |
+| Project Key | `Gonzalo25U_Backend-Rednorte-FsIII` |
+| Servicios analizados | `appointment-service`, `user-service` |
+| Cobertura mínima | 70% (configurado en Jacoco) |
+| Quality Gate | Sonar way |
 
-**Próximas fases:**
-- 🔄 Aumentar cobertura a 80% (Junio)
-- 🔄 Integración de notificaciones (Junio-Julio)
-- 🔄 Despliegue en Render (Agosto)
-- 🔄 Caché Redis (Septiembre+)
+### Herramientas de testing
 
+- **JUnit 5** — tests unitarios
+- **Mockito** — mocking de dependencias
+- **Jacoco** — reporte de cobertura de código
+
+- **Vitest** — para cobertura del frontend
+
+Si el Quality Gate falla, el pipeline se detiene con `exit code 3` y **no se despliega** ninguna imagen al cluster, garantizando que solo código que cumple los estándares de calidad llega a producción.
+
+> 📸 **[Dashboard de SonarCloud]**
+
+**[Frontend]**
+![ Dashboard de SonarCloud](docs/Sonar-front1.png)
+![ Dashboard de SonarCloud](docs/Sonar-front2.png)
+
+**[Backend]**
+![ Dashboard de SonarCloud](docs/Sonar-back1.png)
+![ Dashboard de SonarCloud](docs/Sonar-back2.png)
+
+
+> 📸 **[CAPTURA 2: Reporte Graficado de Seguridad]**
+
+**[Frontend]**
+![Reporte Graficado de Seguridad](docs/sec-front.png)
+
+**[Backend]**
+![ Reporte Graficado de Seguridad](docs/sec-back.png)
 ---
 
-**Última actualización:** 11 de Mayo 2026  
-**Estado:** En desarrollo (Fase 1)  
-**Siguiente phase:** Mejora de tests y notificaciones (Junio 2026)
+## Evidencias del Despliegue
+
+### Estado final del cluster
+
+```bash
+kubectl get pods -n rednorte
+```
+
+| Pod | Estado | Reinicios |
+|---|---|---|
+| eureka-server | Running | 0 |
+| auth-service (×2) | Running | 0 |
+| bff-service (×2) | Running | 0 |
+| gateway-service (×2) | Running | 0 |
+| user-service (×2) | Running | 0 |
+| appointment-service (×2) | Running | 0 |
+| notification-service | Running | 0 |
+| rabbitmq | Running | 0 |
+| redis | Running | 0 |
+
+### URLs públicas
+
+| Servicio | URL |
+|---|---|
+| Gateway (API) | `http://a24fa6f8d8b734c259412bde4df58a7f-781657377.us-east-1.elb.amazonaws.com` |
+| BFF | `http://ae8cced15e30a434ab64a24e0f35ca7c-562956923.us-east-1.elb.amazonaws.com` |
+
+### Verificación de login exitoso
+
+```bash
+curl -X POST http://<gateway-url>/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"rut":"xxxxxxxx-x","password":"contraseña"}'
+
+# Respuesta esperada:
+# {"token":"eyJhbGciOiJIUzI1NiJ9..."}
+```
+
+
+> 📸 **[Respuesta exitosa del endpoint de login (token JWT)]**
+![ Reporte Graficado de Seguridad](docs/front1.png)
+
+> 📸 **[Evidencias del despliegue]**
+![ Reporte Graficado de Seguridad](docs/front1.png)
+![ Reporte Graficado de Seguridad](docs/front2.png)
+![ Reporte Graficado de Seguridad](docs/front3.png)
+![ Reporte Graficado de Seguridad](docs/front4png)
