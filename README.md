@@ -1,27 +1,54 @@
-# 🏥 RedNorte — Backend
+# 🏥 RedNorte — Infraestructura, CI/CD y Observabilidad
 
-Sistema de gestión médica basado en microservicios Spring Boot, desplegado en AWS EKS con pipeline CI/CD automatizado mediante GitHub Actions.
+Sistema de gestión médica basado en microservicios Spring Boot (backend) y Astro + React (frontend), desplegado en AWS EKS con pipeline CI/CD automatizado, análisis de calidad continuo y monitoreo centralizado.
 
 ---
 
 ## 📋 Tabla de contenidos
 
-- [Arquitectura del Cluster AWS EKS](#arquitectura-del-cluster-aws-eks)
-- [VPC y Configuración de Red](#vpc-y-configuración-de-red)
-- [Nodos y Capacidad de Cómputo](#nodos-y-capacidad-de-cómputo)
-- [Subredes y Tags](#subredes-y-tags)
-- [Docker Hub](#docker-hub)
-- [Manifiestos Kubernetes (k8s)](#manifiestos-kubernetes-k8s)
-- [Pipeline CI/CD — GitHub Actions](#pipeline-cicd--github-actions)
-- [Secrets y Credenciales](#secrets-y-credenciales)
-- [SonarCloud — Análisis de Calidad](#sonarcloud--análisis-de-calidad)
-- [Evidencias del Despliegue](#evidencias-del-despliegue)
+1. [Arquitectura general](#1-arquitectura-general)
+2. [Cluster AWS EKS](#2-cluster-aws-eks)
+3. [VPC, subredes y tags](#3-vpc-subredes-y-tags)
+4. [Docker Hub](#4-docker-hub)
+5. [Manifiestos Kubernetes — Backend](#5-manifiestos-kubernetes--backend)
+6. [Manifiestos Kubernetes — Frontend](#6-manifiestos-kubernetes--frontend)
+7. [Pipeline CI/CD — Backend](#7-pipeline-cicd--backend)
+8. [Pipeline CI/CD — Frontend](#8-pipeline-cicd--frontend)
+9. [GitHub Secrets](#9-github-secrets)
+10. [Branch Protection (Ruleset)](#10-branch-protection-ruleset)
+11. [SonarCloud — Backend](#11-sonarcloud--backend)
+12. [SonarCloud — Frontend](#12-sonarcloud--frontend)
+13. [CloudWatch — Monitoreo y Dashboard](#13-cloudwatch--monitoreo-y-dashboard)
+14. [Evidencias del despliegue](#14-evidencias-del-despliegue)
 
 ---
 
-## Arquitectura del Cluster AWS EKS
+## 1. Arquitectura general
 
-El backend de RedNorte está desplegado en **Amazon Elastic Kubernetes Service (EKS)** bajo el cluster `ClusterRedNorte` en la región `us-east-1`. La aplicación está compuesta por 7 microservicios Spring Boot orquestados dentro del namespace `rednorte`.
+RedNorte está compuesto por **8 servicios** desplegados en un único cluster EKS bajo el namespace `rednorte`:
+
+| Capa | Servicio | Tecnología | Puerto |
+|---|---|---|---|
+| Frontend | `frontend` | Astro + React + nginx | 80 |
+| Entrada | `bff-service` | Spring Boot | 8085 |
+| Entrada | `gateway-service` | Spring Boot | 8082 |
+| Descubrimiento | `eureka-server` | Spring Cloud Eureka | 8761 |
+| Negocio | `auth-service` | Spring Boot + JWT | 8084 |
+| Negocio | `user-service` | Spring Boot | 8081 |
+| Negocio | `appointment-service` | Spring Boot | 8083 |
+| Negocio | `notification-service` | Spring Boot | 8086 |
+| Infra | `rabbitmq` | RabbitMQ | 5672 / 15672 |
+| Infra | `redis` | Redis | 6379 |
+| Datos | Supabase PostgreSQL | externo (pooler) | 5432 |
+
+> 📸 **[Diagrama de arquitectura general / VPC completo]**
+![Diagrama de arquitectura general ](/docs/vpc-cluster1.png)
+
+> 📸 **[kubectl get pods -n rednorte — todos los pods Running]**
+![kubectl get pods](/docs/pods-activos.png)
+---
+
+## 2. Cluster AWS EKS
 
 | Parámetro | Valor |
 |---|---|
@@ -30,43 +57,28 @@ El backend de RedNorte está desplegado en **Amazon Elastic Kubernetes Service (
 | Versión de Kubernetes | `v1.35` |
 | Namespace | `rednorte` |
 | Node Group | `GrupoNodosRedNorte` |
-| IAM Role del cluster | `LabRole` |
+| IAM Role (cluster y nodos) | `LabRole` |
+| Cantidad de nodos | 3 |
+| Pods máximos por nodo | 17 |
+| CPU por nodo | 2 vCPU (1930m allocatable) |
+| Memoria por nodo | ~3.8 GB (3.2 GB allocatable) |
 
-### Microservicios desplegados
+### Estrategia de despliegue
 
-| Servicio | Puerto | Tipo de Service |
-|---|---|---|
-| `eureka-server` | 8761 | ClusterIP |
-| `auth-service` | 8084 | ClusterIP |
-| `user-service` | 8081 | ClusterIP |
-| `appointment-service` | 8083 | ClusterIP |
-| `notification-service` | 8086 | ClusterIP |
-| `gateway-service` | 8082 | LoadBalancer |
-| `bff-service` | 8085 | LoadBalancer |
-| `rabbitmq` | 5672 / 15672 | ClusterIP |
-| `redis` | 6379 | ClusterIP |
+Todos los Deployments usan `RollingUpdate` con `maxSurge: 0` y `maxUnavailable: 1`, evitando que se creen pods nuevos antes de eliminar los viejos (previene saturación de nodos). Además, `revisionHistoryLimit: 2` limita los ReplicaSets antiguos acumulados.
 
-> 📸 **[Vista del cluster en AWS Console]**
+> 📸 **[EKS → Clusters → ClusterRedNorte, vista general]**
+![EKS → Clusters → ClusterRedNorte](/docs/cluster1.png)
+![EKS → Clusters → ClusterRedNorte](/docs/cluster2.png)
 
-![Cluster en AWS Console](docs/cluster1.png)
-
-> 📸 **[Vista detallad del cluster en AWS Console]**
-
-![Cluster en AWS Console Detallada](docs/cluster2.png)
+> 📸 **[EKS → Node Groups → GrupoNodosRedNorte]**
+![EKS → Node Groups](/docs/nodos-cluster.png)
 
 
-> 📸 **[Pods corriendo — kubectl get pods -n rednorte]**
-![Pods corriendo](docs/pods-activos.png)
-
-
-> 📸 **[Services y LoadBalancers — kubectl get services -n rednorte]**
-![ Services y LoadBalancers](docs/Services-running.png)
 
 ---
 
-## VPC y Configuración de Red
-
-La infraestructura de red está organizada dentro de una **VPC dedicada** con separación entre subredes públicas y privadas para garantizar el aislamiento y la seguridad.
+## 3. VPC, subredes y tags
 
 ```
 VPC — 10.0.0.0/16 (us-east-1)
@@ -78,50 +90,12 @@ VPC — 10.0.0.0/16 (us-east-1)
     └── 10.0.25.0/24 (us-east-1b)
 ```
 
-- **Subredes públicas**: exponen los Application Load Balancers al internet. Security Group permite tráfico entrante en puerto 80.
-- **Subredes privadas**: alojan los nodos EC2 y todos los pods. No tienen IP pública. El tráfico de salida hacia servicios externos (Supabase) pasa por un NAT Gateway.
-
-> 📸 **[VPC en AWS Console — VPC]**
-![ VPC en AWS Console](docs/vpc-cluster1.png)
-
-> 📸 **[Subredes públicas y privadas — VPC]**
-![ Subredes públicas y privadas](docs/vpc-cluster2.png)
-
----
-
-## Nodos y Capacidad de Cómputo
-
-El cluster utiliza **instancias EC2** como nodos de trabajo organizadas en el Node Group `GrupoNodosRedNorte`.
-
-| Parámetro | Valor |
-|---|---|
-| Tipo de nodo | EC2 (Amazon Linux 2) |
-| Cantidad de nodos | 3 |
-| Pods máximos por nodo | 17 |
-| CPU por nodo | 2 vCPU (1930m allocatable) |
-| Memoria por nodo | ~3.8 GB (3.2 GB allocatable) |
-| Estrategia de actualización | `RollingUpdate` (maxSurge: 0, maxUnavailable: 1) |
-| Historial de revisiones | `revisionHistoryLimit: 2` |
-
-La estrategia `maxSurge: 0` evita que Kubernetes cree pods nuevos antes de eliminar los viejos, previniendo la saturación de nodos durante los despliegues.
-
-> 📸 **[Node Group en AWS Console — EKS → Node Groups]**
-![ Node Group en AWS Console](docs/nodos-cluster.png)
----
-
-## Subredes y Tags
-
-Para que EKS pueda crear Application Load Balancers automáticamente, las subredes requieren tags específicos.
+- **Subred pública** → expone los ALB de `frontend-service`, `bff-service` y `gateway-service` en el puerto 80.
+- **Subred privada** → aloja los nodos EC2 y todos los pods. Sin IP pública. Egress hacia Supabase vía NAT Gateway.
 
 ### Tags obligatorios en subredes públicas
 
-| Tag | Valor | Propósito |
-|---|---|---|
-| `kubernetes.io/role/elb` | `1` | Indica que la subred puede alojar ALBs externos |
-| `kubernetes.io/cluster/ClusterRedNorte` | `shared` | Asocia la subred al cluster EKS |
-| `Name` | `VPC-cluster-subnet-public1-*` | Identificador legible |
-
-### Comando para agregar los tags
+Sin estos tags, los Services tipo `LoadBalancer` quedan en `<pending>` indefinidamente:
 
 ```bash
 aws ec2 create-tags \
@@ -131,50 +105,51 @@ aws ec2 create-tags \
   --region us-east-1
 ```
 
-> ⚠️ Sin estos tags, los Services de tipo `LoadBalancer` quedan en estado `<pending>` indefinidamente.
+| Tag | Valor | Propósito |
+|---|---|---|
+| `kubernetes.io/role/elb` | `1` | Permite alojar ALBs externos |
+| `kubernetes.io/cluster/ClusterRedNorte` | `shared` | Asocia la subred al cluster |
 
-> 📸 **[Tags de la subred pública]**
-![ Tags de la subred pública](docs/tag-public1.png)
-![ Tags de la subred pública](docs/tag-public2.png)
+> 📸 **[VPC → Subnets, lista de subredes públicas y privadas]**
+![VPC → Subnets, lista de subredes públicas y privadas](/docs/vpc-cluster2.png)
+
+> 📸 **[Tags de la subred pública en EC2 → Subnets]**
+![Tags de la subred pública en EC2 → Subnets](/docs/tag-public1.png)
+![Tags de la subred pública en EC2 → Subnets](/docs/tag-public2.png)
+
+> 📸 **[kubectl get services -n rednorte — EXTERNAL-IP asignada]**
+![kubectl get services](/docs/Services-running.png)
 
 ---
 
-## Docker Hub
+## 4. Docker Hub
 
-Las imágenes Docker de todos los microservicios se almacenan en **Docker Hub** bajo el usuario `gonzalo25u`, ya que el rol IAM del laboratorio no permite crear repositorios en Amazon ECR.
+Las imágenes se almacenan en **Docker Hub** (usuario `gonzalo25u`) en lugar de ECR, ya que el rol `voclabs` del laboratorio no permite `ecr:CreateRepository`.
 
-### Repositorios
-
-| Repositorio | Imagen |
+| Repositorio | Contenido |
 |---|---|
-| `gonzalo25u/rednorte-eureka-server` | Servidor de descubrimiento Eureka |
-| `gonzalo25u/rednorte-auth-service` | Servicio de autenticación JWT |
+| `gonzalo25u/rednorte-eureka-server` | Servidor de descubrimiento |
+| `gonzalo25u/rednorte-auth-service` | Autenticación JWT |
 | `gonzalo25u/rednorte-user-service` | Gestión de usuarios |
-| `gonzalo25u/rednorte-appointment-service` | Gestión de citas médicas |
+| `gonzalo25u/rednorte-appointment-service` | Gestión de citas |
 | `gonzalo25u/rednorte-gateway-service` | API Gateway |
 | `gonzalo25u/rednorte-bff-service` | Backend for Frontend |
-| `gonzalo25u/rednorte-notification-service` | Servicio de notificaciones |
+| `gonzalo25u/rednorte-notification-service` | Notificaciones |
+| `gonzalo25u/rednorte-frontend` | Astro + React + nginx |
 
-### Dockerfile del Backend
+Cada imagen se etiqueta con el **SHA del commit de Git**, garantizando trazabilidad exacta entre código desplegado e imagen.
 
-Cada microservicio usa la misma estructura de Dockerfile. La compilación con Maven ocurre en el runner de GitHub Actions, y el Dockerfile solo empaqueta el JAR ya compilado:
+> 📸 **[Docker Hub — lista de repositorios]**
+![Docker Hub — lista de repositorios](/docs/repositorios-dockerhub.png)
 
-```dockerfile
-FROM eclipse-temurin:21-jre
-WORKDIR /app
-COPY target/*.jar app.jar
-ENTRYPOINT ["java", "-jar", "app.jar"]
-```
+> 📸 **[Tags de imágenes con SHA del commit]**
+![Tags de imágenes con SHA del commit](/docs/sha.png)
 
-Esta estrategia mantiene la imagen final liviana (~200 MB) al incluir solo el JRE y el JAR, sin herramientas de compilación.
-
-> 📸 **[Repositorios en Docker Hub — hub.docker.com/u/gonzalo25u]**
-![ Repositorios en Docker Hub](docs/repositorios-dockerhub.png)
 ---
 
-## Manifiestos Kubernetes (k8s)
+## 5. Manifiestos Kubernetes — Backend
 
-Todos los manifiestos están versionados en el repositorio bajo la carpeta `k8s/`. A continuación se muestra el manifiesto del `bff-service` como ejemplo representativo:
+Ejemplo representativo (`k8s/bff-service.yml`):
 
 ```yaml
 apiVersion: apps/v1
@@ -207,9 +182,9 @@ spec:
         - containerPort: 8085
         envFrom:
         - configMapRef:
-            name: rednorte-config   # variables no sensibles
+            name: rednorte-config
         - secretRef:
-            name: rednorte-secrets  # credenciales cifradas
+            name: rednorte-secrets
 ---
 apiVersion: v1
 kind: Service
@@ -225,7 +200,7 @@ spec:
     targetPort: 8085
 ```
 
-### ConfigMap — variables no sensibles
+### ConfigMap — variables no sensibles (`k8s/configmap.yml`)
 
 ```yaml
 apiVersion: v1
@@ -238,100 +213,196 @@ data:
   DB_PORT: "5432"
   DB_NAME: "postgres"
   RABBITMQ_HOST: "rabbitmq-service"
-  RABBITMQ_PORT: "5672"
   EUREKA_URL: "http://eureka-server-service:8761/eureka/"
   GATEWAY_URL: "http://gateway-service:8082"
   SUPABASE_URL: "https://pfprycndvkdxuzvgjqol.supabase.co"
 ```
 
-📸 **[Carpetas k8s]**
-**[Frontend]**
-![ Carpeta k8s front](docs/k8s-front.png)
+> 📸 **[carpeta k8s/ del backend en el repositorio]**
+![carpeta k8s/ del backend](/docs/k8s.png)
+
+
 ---
 
-**[Backend]**
-![ Carpeta k8s back](docs/k8s.png)
+## 6. Manifiestos Kubernetes — Frontend
+
+`k8s/frontend.yml`:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: rednorte
+  labels:
+    app: frontend
+spec:
+  replicas: 1
+  revisionHistoryLimit: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+      - name: frontend
+        image: gonzalo25u/rednorte-frontend:${IMAGE_TAG}
+        ports:
+        - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-service
+  namespace: rednorte
+spec:
+  type: LoadBalancer
+  selector:
+    app: frontend
+  ports:
+  - port: 80
+    targetPort: 80
+```
+
+El frontend es un sitio **estático** (Astro `output: static`) servido por **nginx**, que recibe la URL del BFF en tiempo de build mediante `--build-arg PUBLIC_API_URL`.
+
+> 📸 **[carpeta k8s/ del frontend en el repositorio]**
+![carpeta k8s/ del frontend](/docs/k8s-front.png)
+
 ---
 
+## 7. Pipeline CI/CD — Backend
 
-📸 **[Muestra con los manifiestos en el repositorio]**
-
-**[frontend.yml]**
-![ frontend.yml](docs/manifiesto-front.png)
----
-
-**[appointment-service.yml]**
-![ Ejemplo manifiesto back](docs/manifiesto-ejemplo.png)
----
-
-
-## Pipeline CI/CD — GitHub Actions
-
-El pipeline se define en `.github/workflows/deploy.yml` y se activa automáticamente con cada `push` a la rama `master`.
-
-### Flujo del pipeline
+`.github/workflows/deploy.yml` se activa con cada `push` a `master`.
 
 ```
 git push origin master
         ↓
 1. Checkout código
 2. Setup Java 21
-3. Tests + Jacoco (appointment-service, user-service)
+3. Tests (JUnit 5 + Mockito) + cobertura Jacoco
+        ↓
 4. Análisis SonarCloud + Quality Gate
-        ↓ (falla si Quality Gate no pasa)
-5. Configurar credenciales AWS
-6. Login a Docker Hub
-7. mvn package + docker build + docker push (×7 servicios)
-8. kubectl apply — namespace, configmap, secrets
-9. kubectl apply — redis, rabbitmq
-10. kubectl apply — microservicios con IMAGE_TAG
-11. kubectl rollout status (verificación)
-12. Métricas a CloudWatch (duración, éxito/fallo)
+        ↓ (se detiene si el Quality Gate falla)
+5. Login a Docker Hub + credenciales AWS
+6. mvn package + docker build + docker push (×7 servicios)
+7. kubectl apply — namespace, configmap, secrets
+8. kubectl apply — redis, rabbitmq
+9. kubectl apply — microservicios con IMAGE_TAG=SHA
+10. kubectl rollout status (verificación)
+11. Métricas a CloudWatch (duración, éxito/fallo)
 ```
 
-### Puntos clave
+Fragmento clave — Quality Gate bloqueante:
 
-- El `IMAGE_TAG` usa el SHA del commit de Git, garantizando trazabilidad exacta entre código e imagen desplegada.
-- El paso de SonarCloud usa `sonar.qualitygate.wait=true` — si el Quality Gate falla, el pipeline se detiene y no despliega.
-- Los secrets en `secrets.yml` se reemplazan con `sed` antes de aplicar al cluster, nunca se guardan en texto plano en el repositorio.
-- Las métricas de duración y éxito/fallo se envían a CloudWatch en el namespace `RedNorte/Deployments`.
+```yaml
+- name: Análisis SonarCloud — appointment-service
+  uses: SonarSource/sonarcloud-github-action@master
+  with:
+    projectBaseDir: appointment-service
+    args: >
+      -Dsonar.organization=gonzalo25u
+      -Dsonar.projectKey=Gonzalo25U_Backend-Rednorte-FsIII
+      -Dsonar.qualitygate.wait=true
+  env:
+    SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+```
 
-📸 **[Pipeline exitoso en GitHub Actions — pestaña Actions]**
+Fragmento clave — métricas a CloudWatch:
 
-**[Frontend]**
+```yaml
+- name: Registrar métricas en CloudWatch
+  run: |
+    DEPLOY_END=$(date +%s)
+    DEPLOY_TIME=$((DEPLOY_END - DEPLOY_START))
+    aws cloudwatch put-metric-data \
+      --namespace "RedNorte/Deployments" \
+      --metric-name "DeploymentDuration" \
+      --value $DEPLOY_TIME --unit Seconds \
+      --region us-east-1
+```
 
-![ Pipeline exitoso en GitHub Actions](docs/Action-front.png)
-![ Pipeline exitoso en GitHub Actions](docs/Action-front2.png)
+> 📸 **[Pipeline backend exitoso en GitHub Actions]**
+![pipeline backend exitoso en GitHub Actions](/docs/Action-back.png)
 
-**[Backend]**
-![ Pipeline exitoso en GitHub Actions](docs/Action-back.png)
-![ Pipeline exitoso en GitHub Actions](docs/Action-back2.png)
-
+> 📸 **[Detalle de los pasos — Build, Push, Deploy]**
+![detalle de los pasos — Build, Push, Deploy](/docs/Action-back2.png)
 
 ---
 
-## Secrets y Credenciales
+## 8. Pipeline CI/CD — Frontend
 
-### GitHub Secrets
+`.github/workflows/deploy.yml` se activa con cada `push` a `main`.
 
-Ninguna credencial aparece en el código fuente. Todas están almacenadas como GitHub Secrets:
+```
+git push origin main
+        ↓
+1. Checkout código
+2. Setup Node 22
+3. npm ci + Vitest --coverage
+        ↓
+4. Análisis SonarCloud + Quality Gate
+        ↓ (se detiene si el Quality Gate falla)
+5. Login a Docker Hub + credenciales AWS
+6. docker build --build-arg PUBLIC_API_URL=... + docker push
+7. kubectl apply — frontend.yml con IMAGE_TAG=SHA
+8. kubectl rollout status
+9. Métricas a CloudWatch
+```
 
-| Secret | Propósito |
-|---|---|
-| `AWS_ACCESS_KEY_ID` | Credencial IAM para autenticarse con AWS |
-| `AWS_SECRET_ACCESS_KEY` | Llave secreta del IAM User |
-| `AWS_SESSION_TOKEN` | Token de sesión temporal (laboratorio) |
-| `DOCKERHUB_USERNAME` | Usuario de Docker Hub (`gonzalo25u`) |
-| `DOCKERHUB_TOKEN` | Access Token de Docker Hub |
-| `DB_USERNAME` | Usuario del pooler de Supabase |
-| `DB_PASSWORD` | Contraseña de PostgreSQL en Supabase |
-| `JWT_SECRET` | Clave para firmar tokens JWT |
-| `SUPABASE_ANON_KEY` | Clave pública de Supabase |
-| `SUPABASE_SERVICE_KEY` | Clave de servicio de Supabase |
+Dockerfile del frontend (multi-stage):
 
-### Kubernetes Secrets
+```dockerfile
+FROM node:22-alpine AS builder
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY . .
+ARG PUBLIC_API_URL
+RUN PUBLIC_API_URL=$PUBLIC_API_URL npm run build
 
-El archivo `k8s/secrets.yml` en el repositorio contiene solo placeholders:
+FROM nginx:alpine AS runner
+COPY --from=builder /app/dist /usr/share/nginx/html
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]
+```
+
+> 📸 **[Pipeline frontend exitoso en GitHub Actions]**
+![Pipeline frontend](/docs/Action-front.png)
+
+> 📸 **[Detalle de los pasos — Tests, Build, Push, Deploy]**
+![Detalle de los pasos](/docs/Action-front2.png)
+
+---
+
+## 9. GitHub Secrets
+
+Ninguna credencial está escrita en el código fuente. Todas se inyectan vía GitHub Secrets:
+
+| Secret | Repositorio | Propósito |
+|---|---|---|
+| `AWS_ACCESS_KEY_ID` | Backend + Frontend | Autenticación AWS |
+| `AWS_SECRET_ACCESS_KEY` | Backend + Frontend | Autenticación AWS |
+| `AWS_SESSION_TOKEN` | Backend + Frontend | Token temporal (laboratorio) |
+| `DOCKERHUB_USERNAME` | Backend + Frontend | Usuario Docker Hub |
+| `DOCKERHUB_TOKEN` | Backend + Frontend | Access Token Docker Hub |
+| `DB_USERNAME` | Backend | Usuario pooler Supabase |
+| `DB_PASSWORD` | Backend | Contraseña PostgreSQL |
+| `JWT_SECRET` | Backend | Firma de tokens JWT |
+| `SUPABASE_ANON_KEY` | Backend | Clave pública Supabase |
+| `SUPABASE_SERVICE_KEY` | Backend | Clave de servicio Supabase |
+| `SONAR_TOKEN` | Backend + Frontend | Autenticación SonarCloud |
+| `PUBLIC_API_URL` | Frontend | URL del BFF inyectada en build |
+
+Los Secrets de Kubernetes (`k8s/secrets.yml`) contienen solo placeholders en el repositorio:
 
 ```yaml
 stringData:
@@ -340,70 +411,203 @@ stringData:
   JWT_SECRET: "${JWT_SECRET}"
 ```
 
-El pipeline los reemplaza con `sed` antes de aplicar al cluster:
+El pipeline los reemplaza en tiempo de ejecución:
 
 ```bash
-sed -i "s|\${DB_USERNAME}|${{ secrets.DB_USERNAME }}|g" k8s/secrets.yml
+sed -i "s|\${DB_PASSWORD}|${{ secrets.DB_PASSWORD }}|g" k8s/secrets.yml
 kubectl apply -f k8s/secrets.yml
 ```
 
-Los pods leen las credenciales a través de `envFrom.secretRef`, que monta el Secret como variables de entorno en tiempo de ejecución.
+Los pods leen las credenciales mediante `envFrom.secretRef`, montadas como variables de entorno al arrancar el contenedor — nunca quedan expuestas en logs ni en el repositorio.
 
-## [Panel de GitHub Secrets (nombres visibles, valores ocultos)]
+> 📸 **[GitHub Secrets del backend (nombres visibles, valores ocultos)]**
+![GitHub Secrets del backend](/docs/Secrets-back.png)
 
-**[Frontend]**
-![ Panel de GitHub Secrets](docs/Secrets-front.png)
-**[Backend]**
-![ Panel de GitHub Secrets](docs/Secrets-back.png)
+> 📸 **[GitHub Secrets del frontend]**
+![GitHub Secrets del frontend](/docs/Secrets-front.png)
 
-> 📸 **[kubectl get secret rednorte-secrets -n rednorte]**
-![ Secret rednorte-secrets](docs/Secrets-yml.png)
+> 📸 **[Secrets.yml]**
+![Texto alternativo](/docs/Secrets-yml.png)
 
 ---
 
-## SonarCloud — Análisis de Calidad
+## 10. Branch Protection (Ruleset)
 
-El análisis de calidad se integra en el pipeline como **gate obligatorio** antes del despliegue.
+Se configuró un **Ruleset** en GitHub para proteger la rama `master` (backend) y `main` (frontend), bloqueando push directo y exigiendo Pull Request con checks aprobados.
+
+### Configuración
+
+- **Target branches:** `master` (backend) / `main` (frontend)
+- **Require a pull request before merging:** ✅
+- **Require status checks to pass:** ✅ (`Tests y Análisis de Calidad`, `Build, Push y Deploy`)
+- **Block force pushes:** ✅
+
+### Evidencia de funcionamiento
+
+Al intentar `git push origin master` directamente, GitHub rechaza el push:
+
+```
+! [remote rejected] master -> master (push declined due to repository rule violations)
+error: failed to push some refs
+```
+
+Esto demuestra que **ningún código llega a producción sin pasar por revisión y por los checks automatizados del pipeline** (tests + SonarCloud Quality Gate).
+
+# Configuración del ruleset
+
+> 📸 **[Ruleset Backend]**
+![Backend](/docs/RuleSet-back-create.png)
+![Backend](/docs/RuleSet-back-create2.png)
+
+> 📸 **[Ruleset Frontend]**
+![Frontend](/docs/RuleSet-front-create.png)
+![Frontend](/docs/RuleSet-front-create2.png)
+
+> 📸 **[Push directo rechazado por el ruleset]**
+![Push directo rechazado](/docs/no-push.png)
+
+> 📸 **[Pull Request con checks pasando antes del merge]**
+![Pull Request con checks pasando](/docs/Ruleset.png)
+
+> 📸 **[Pull Request con checks Listos]**
+![Pull Request con checks pasando](/docs/Ruleset-ok.png)
+
+---
+
+## 11. SonarCloud — Backend
 
 | Parámetro | Valor |
 |---|---|
 | Organización | `gonzalo25u` |
 | Project Key | `Gonzalo25U_Backend-Rednorte-FsIII` |
 | Servicios analizados | `appointment-service`, `user-service` |
-| Cobertura mínima | 70% (configurado en Jacoco) |
+| Herramientas de testing | JUnit 5, Mockito, Jacoco |
+| Cobertura mínima (Jacoco) | 70% |
 | Quality Gate | Sonar way |
 
-### Herramientas de testing
+Configuración de Jacoco en `pom.xml`:
 
-- **JUnit 5** — tests unitarios
-- **Mockito** — mocking de dependencias
-- **Jacoco** — reporte de cobertura de código
+```xml
+<plugin>
+  <groupId>org.jacoco</groupId>
+  <artifactId>jacoco-maven-plugin</artifactId>
+  <version>0.8.11</version>
+  <executions>
+    <execution>
+      <id>check</id>
+      <goals><goal>check</goal></goals>
+      <configuration>
+        <rules>
+          <rule>
+            <element>BUNDLE</element>
+            <limits>
+              <limit>
+                <counter>LINE</counter>
+                <value>COVEREDRATIO</value>
+                <minimum>0.70</minimum>
+              </limit>
+            </limits>
+          </rule>
+        </rules>
+      </configuration>
+    </execution>
+  </executions>
+</plugin>
+```
 
-- **Vitest** — para cobertura del frontend
+Si el Quality Gate falla, el scanner retorna `exit code 3` y el job `test-and-quality` falla, bloqueando el job `build-and-deploy` (que depende de él vía `needs:`).
 
-Si el Quality Gate falla, el pipeline se detiene con `exit code 3` y **no se despliega** ninguna imagen al cluster, garantizando que solo código que cumple los estándares de calidad llega a producción.
-
-> 📸 **[Dashboard de SonarCloud]**
-
-**[Frontend]**
-![ Dashboard de SonarCloud](docs/Sonar-front1.png)
-![ Dashboard de SonarCloud](docs/Sonar-front2.png)
-
-**[Backend]**
-![ Dashboard de SonarCloud](docs/Sonar-back1.png)
-![ Dashboard de SonarCloud](docs/Sonar-back2.png)
+> 📸 **[Dashboard SonarCloud backend — Quality Gate Passed]**
+![Dashboard SonarCloud backend](/docs/Sonar-back.png)
+![Dashboard SonarCloud backend](/docs/Sonar-back2.png)
 
 
-> 📸 **[CAPTURA 2: Reporte Graficado de Seguridad]**
 
-**[Frontend]**
-![Reporte Graficado de Seguridad](docs/sec-front.png)
-
-**[Backend]**
-![ Reporte Graficado de Seguridad](docs/sec-back.png)
 ---
 
-## Evidencias del Despliegue
+## 12. SonarCloud — Frontend
+
+| Parámetro | Valor |
+|---|---|
+| Organización | `gonzalo25u` |
+| Project Key | `Gonzalo25U_Frontend-Rednorte-FsIII` |
+| Herramienta de testing | Vitest + @vitest/coverage-v8 |
+| Cobertura alcanzada | 80.5% |
+| Quality Gate | Sonar way |
+
+Configuración de coverage en `vitest.config.js`:
+
+```javascript
+export default defineConfig({
+  plugins: [react()],
+  test: {
+    environment: "jsdom",
+    globals: true,
+    setupFiles: ["./src/test/setup.js"],
+    include: ["src/**/*.test.{js,jsx}"],
+    coverage: {
+      provider: "v8",
+      reporter: ["lcov", "text"],
+      include: ["src/**/*.{js,jsx}"],
+      exclude: ["src/test/**", "src/**/*.test.{js,jsx}"]
+    }
+  },
+});
+```
+
+Se escribieron tests unitarios para containers (`LoginContainer`, `UserListContainer`, `DoctorContainer`, `PacienteContainer`), componentes modales, servicios (`authService`) y utilidades (`api.js`, `auth.js`), elevando la cobertura desde 19% hasta superar el umbral del 80% requerido por el Quality Gate.
+
+> 📸 **[Dashboard SonarCloud frontend — Quality Gate Passed]**
+![Dashboard SonarCloud Frontend](/docs/Sonar-front.png)
+![Dashboard SonarCloud Frontend](/docs/Sonar-front2.png)
+
+
+---
+
+## 13. CloudWatch — Monitoreo y Dashboard
+
+### Métricas personalizadas
+
+El pipeline envía métricas propias al namespace `RedNorte/Deployments` en cada ejecución:
+
+```bash
+aws cloudwatch put-metric-data \
+  --namespace "RedNorte/Deployments" \
+  --metric-name "DeploymentDuration" \
+  --value $DEPLOY_TIME --unit Seconds \
+  --region us-east-1
+
+aws cloudwatch put-metric-data \
+  --namespace "RedNorte/Deployments" \
+  --metric-name "DeploymentSuccess" \
+  --value 1 --unit Count \
+  --region us-east-1
+```
+
+Si el despliegue falla (`if: failure()`), se registra `DeploymentSuccess = 0`, permitiendo distinguir despliegues exitosos de fallidos directamente en el dashboard.
+
+### Dashboard — RedNorte-Dashboard
+
+| Widget | Métrica | Fuente |
+|---|---|---|
+| Tiempo de despliegue | `DeploymentDuration` | Pipeline (custom) |
+| Despliegues exitosos/fallidos | `DeploymentSuccess` | Pipeline (custom) |
+| CPU de nodos EKS | `CPUUtilization` | AWS/EC2 (Auto Scaling Group) |
+| Network In/Out | `NetworkIn`, `NetworkOut` | AWS/EC2 (Auto Scaling Group) |
+
+```bash
+aws cloudwatch put-dashboard \
+  --dashboard-name "RedNorte-Dashboard" \
+  --dashboard-body '{ "widgets": [ ... ] }' \
+  --region us-east-1
+```
+
+> 📸 **[CloudWatch , vista completa]**
+![CloudWatch](/docs/dash1.png)
+
+---
+
+## 14. Evidencias del despliegue
 
 ### Estado final del cluster
 
@@ -411,42 +615,47 @@ Si el Quality Gate falla, el pipeline se detiene con `exit code 3` y **no se des
 kubectl get pods -n rednorte
 ```
 
-| Pod | Estado | Reinicios |
-|---|---|---|
-| eureka-server | Running | 0 |
-| auth-service (×2) | Running | 0 |
-| bff-service (×2) | Running | 0 |
-| gateway-service (×2) | Running | 0 |
-| user-service (×2) | Running | 0 |
-| appointment-service (×2) | Running | 0 |
-| notification-service | Running | 0 |
-| rabbitmq | Running | 0 |
-| redis | Running | 0 |
+| Pod | Estado |
+|---|---|
+| frontend | Running |
+| bff-service | Running |
+| gateway-service | Running |
+| eureka-server | Running |
+| auth-service | Running |
+| user-service | Running |
+| appointment-service | Running |
+| notification-service | Running |
+| rabbitmq | Running |
+| redis | Running |
 
 ### URLs públicas
 
 | Servicio | URL |
 |---|---|
-| Gateway (API) | `http://a24fa6f8d8b734c259412bde4df58a7f-781657377.us-east-1.elb.amazonaws.com` |
+| Frontend | `http://a918aa7d71946440f9cad2d989c4d0d4-864776264.us-east-1.elb.amazonaws.com` |
 | BFF | `http://ae8cced15e30a434ab64a24e0f35ca7c-562956923.us-east-1.elb.amazonaws.com` |
+| Gateway | `http://a24fa6f8d8b734c259412bde4df58a7f-781657377.us-east-1.elb.amazonaws.com` |
 
-### Verificación de login exitoso
+### Verificación funcional end-to-end
 
 ```bash
-curl -X POST http://<gateway-url>/api/auth/login \
+curl -X POST http://<bff-url>/bff/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"rut":"xxxxxxxx-x","password":"contraseña"}'
+  -d '{"rut":"11111111-1","password":"********"}'
 
-# Respuesta esperada:
 # {"token":"eyJhbGciOiJIUzI1NiJ9..."}
 ```
 
+Se verificó login exitoso, listado/eliminación de usuarios desde el panel de administración, y persistencia de datos en Supabase PostgreSQL.
 
-> 📸 **[Respuesta exitosa del endpoint de login (token JWT)]**
-![ Reporte Graficado de Seguridad](docs/front1.png)
+> 📸 **[Frontend cargado en el navegador — pantalla de login]**
+![Frontend cargado en el navegador](/docs/front1.png)
+![Frontend cargado en el navegador](/docs/front2.png)
+![Frontend cargado en el navegador](/docs/front3.png)
+![Frontend cargado en el navegador](/docs/front4.png)
 
-> 📸 **[Evidencias del despliegue]**
-![ Reporte Graficado de Seguridad](docs/front1.png)
-![ Reporte Graficado de Seguridad](docs/front2.png)
-![ Reporte Graficado de Seguridad](docs/front3.png)
-![ Reporte Graficado de Seguridad](docs/front4png)
+> 📸 **[Pods Rednorte — todos en Running sin reinicios]**
+![Pods Rednorte](/docs/pods-activos.png)
+
+> 📸 **[Respuesta exitosa del login vía curl (datos censurados)]**
+![Respuesta exitosa del login vía curl](/docs/token-longin-terminal.png)
