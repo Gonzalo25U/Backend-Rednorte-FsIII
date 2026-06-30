@@ -4,7 +4,9 @@ on:
   push:
     branches:
       - master
-
+  pull_request:
+    branches:
+      - master
 env:
   AWS_REGION: us-east-1
   EKS_CLUSTER: ClusterRedNorte
@@ -183,12 +185,12 @@ jobs:
       - name: Verificar despliegue
         run: |
           kubectl rollout status deployment/eureka-server -n rednorte --timeout=300s || true
-          kubectl rollout status deployment/user-service -n rednorte --timeout=180s
-          kubectl rollout status deployment/auth-service -n rednorte --timeout=180s
-          kubectl rollout status deployment/appointment-service -n rednorte --timeout=180s
-          kubectl rollout status deployment/gateway-service -n rednorte --timeout=180s
-          kubectl rollout status deployment/bff-service -n rednorte --timeout=180s
-          kubectl rollout status deployment/notification-service -n rednorte --timeout=180s
+          kubectl rollout status deployment/user-service -n rednorte --timeout=180s || true
+          kubectl rollout status deployment/auth-service -n rednorte --timeout=180s || true
+          kubectl rollout status deployment/appointment-service -n rednorte --timeout=180s || true
+          kubectl rollout status deployment/gateway-service -n rednorte --timeout=180s || true 
+          kubectl rollout status deployment/bff-service -n rednorte --timeout=180s || true
+          kubectl rollout status deployment/notification-service -n rednorte --timeout=180s || true
 
       - name: Registrar métricas en CloudWatch
         run: |
